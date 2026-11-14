@@ -15,7 +15,7 @@ README.md          Project overview (this file)
 CONTRIBUTING.md    Contribution guidelines, ADR conventions, and AI-assistance policy
 docs/
   PRD.md           Product Requirements Document (draft)
-  adr/             Architecture Decision Records, ADR-0001 to ADR-0018
+  adr/             Architecture Decision Records, ADR-0001 to ADR-0019
 ```
 
 The planned crate and directory organization is illustrated in [PRD §11.2](docs/PRD.md#112-illustrative-repository-organization). Those directories do not exist yet; each will be added when the functionality it holds is implemented.
@@ -44,7 +44,7 @@ Architecture is recorded as ADRs in [docs/adr](docs/adr/). [ADR-0001](docs/adr/A
 | Status | ADRs |
 |---|---|
 | Accepted | [ADR-0001](docs/adr/ADR-0001-initial-architecture.md) architecture principles, [ADR-0002](docs/adr/ADR-0002-rust-implementation-language.md) Rust as the implementation language |
-| Proposed | ADR-0003 to ADR-0017 |
+| Proposed | ADR-0003 to ADR-0017, and [ADR-0019](docs/adr/ADR-0019-packaging-and-distribution.md) packaging and distribution |
 | Proposed and deferred | [ADR-0018](docs/adr/ADR-0018-distributed-job-state-store.md) distributed job state store |
 
 Proposed decisions are not finalized. The per-ADR status table is in [PRD §17](docs/PRD.md#17-open-architecture-decisions).
@@ -63,6 +63,12 @@ Only Rust is decided. Everything else is a candidate that must be validated befo
 - tracing / OpenTelemetry (observability candidates)
 - thiserror / anyhow (typed and application error handling candidates)
 - SQLite or an append-only journal (local job state store candidates)
+
+## Installation
+
+There is nothing to install yet. The planned distribution is prebuilt binaries plus crates.io packages, starting at the first MVP release; see [ADR-0019](docs/adr/ADR-0019-packaging-and-distribution.md).
+
+The packages named `udc` on crates.io, PyPI, and npm are unrelated projects. UDC's CLI is proposed to be published as `udc-cli`.
 
 ## Future deployment direction
 
