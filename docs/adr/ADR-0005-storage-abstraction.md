@@ -6,7 +6,7 @@
 
 ## Context
 
-UDC must access local files and multiple object stores, initially S3, GCS, and Azure Blob Storage. Format readers and writers need byte-oriented operations such as reads, range reads, writes, listing, and metadata access. Migration orchestration additionally needs staging, multipart/resumable upload, conditional operations, and publication semantics.
+UDC must access local files and multiple object stores, initially S3, GCS, and Azure Blob Storage. Provider identity and token acquisition are deliberately separated from byte/object I/O. Format readers and writers need byte-oriented operations such as reads, range reads, writes, listing, and metadata access. Migration orchestration additionally needs staging, multipart/resumable upload, conditional operations, and publication semantics.
 
 A lowest-common-denominator abstraction can hide provider differences that matter for correctness and performance. Conversely, exposing each cloud SDK throughout the core would make portability difficult.
 
@@ -16,7 +16,7 @@ A lowest-common-denominator abstraction can hide provider differences that matte
 2. Support local files and the target object stores.
 3. Preserve access to range reads and streaming writes.
 4. Expose provider capabilities and conditional operation support.
-5. Support native credential chains/workload identity without storing secrets in UDC configuration.
+5. Integrate with credential resolution without storing secrets in UDC configuration; credential source and refresh policy are owned by [ADR-0016](ADR-0016-cloud-authentication.md).
 6. Avoid claiming atomic rename or transaction semantics where object stores do not provide them.
 7. Reuse maintained ecosystem libraries where feature coverage is sufficient.
 
@@ -50,6 +50,10 @@ Most format readers need a relatively small set of object operations. Reusing an
 Test local filesystem, S3, GCS, and Azure with sequential and ranged reads; streaming/multipart writes; large-object behavior; conditional create/replace where available; list and metadata operations; authentication via native credential chains/workload identity; transient failures and retry behavior; cleanup and publication workflows.
 
 Record provider/library versions and unsupported capabilities.
+
+## Ownership boundary
+
+ADR-0005 owns object operations, data transfer and storage-provider capabilities. It consumes provider clients or credential handles resolved under ADR-0016 and exposes object operations used by the generic Publisher under ADR-0017. It does not own credential precedence, token refresh policy, JobStateStore transitions, or final dataset visibility semantics.
 
 ## Revisit conditions
 
