@@ -295,3 +295,6 @@ ADR-0013 is authoritative for persisted records, state machines, legal transitio
 - telemetry instrumentation and metric cardinality (ADR-0010).
 
 ADR-0012 may specify when the Scheduler calls the State Store, but it must not define a competing state machine.
+
+- [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)
+- [ADR-0018: Distributed Job State Store](ADR-0018-distributed-job-state-store.md)
