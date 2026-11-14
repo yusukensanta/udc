@@ -2,7 +2,7 @@
 
 Thank you for your interest in UDC.
 
-UDC is an OSS-first project focused on data format interoperability, cross-cloud migration, and data integrity.
+UDC is an OSS-first project focused on data format interoperability, cross-cloud migration, and data integrity. Contributions of all sizes are welcome, including bug reports, documentation improvements, tests, and code.
 
 ## Current status
 
@@ -32,9 +32,46 @@ UDC is in the product-definition and architecture stage. The implementation and 
 4. Include tests and documentation.
 5. Describe compatibility implications and known limitations.
 
+## Using AI tools
+
+AI-assisted development tools (including code completion, chat assistants, and coding agents) are permitted. Their use does not change the standards expected of a contribution: the human contributor remains responsible for the submitted work.
+
+When using AI tools, contributors must:
+
+- **Understand and own the changes.** Review generated or modified code line by line. Be prepared to explain its behavior, design choices, edge cases, and trade-offs. Do not submit code you do not understand.
+- **Verify claims and outputs.** Treat generated explanations, APIs, dependency recommendations, benchmark results, and security advice as untrusted until checked against authoritative documentation, source code, or reproducible tests.
+- **Run appropriate checks.** Run relevant formatting, linting, unit, integration, and compatibility tests. Clearly state which checks were run and which were not; never claim that an AI agent ran or passed checks unless you verified the result.
+- **Review the complete diff.** Check for unrelated edits, placeholder implementations, dead code, accidental generated files, weakened tests, broad exception handling, unsafe defaults, and changes outside the intended scope.
+- **Check dependencies and licensing.** Verify the origin, license, maintenance status, and security implications of generated or suggested dependencies and copied code. Do not assume AI-generated code is original or correctly attributed.
+- **Protect confidential information.** Do not provide secrets, access tokens, private keys, credentials, private customer data, or non-public datasets to AI services. Follow any applicable service, organization, and data-handling policies.
+- **Keep changes transparent.** If AI tools materially generated or substantially modified code, tests, documentation, or design content, disclose that use in the pull request description. A brief statement naming the tool (if known) and the kind of assistance is sufficient. Routine autocomplete, spelling correction, or brainstorming that did not materially shape the contribution does not need to be reported.
+- **Do not delegate project decisions to an agent.** AI tools may help explore options or prepare a proposal, but architectural decisions, compatibility claims, security-sensitive changes, and acceptance of trade-offs must be reviewed and owned by the contributor and maintainers.
+
+AI-generated tests do not replace independent test design. In particular, tests should include boundary conditions and failure cases and should not merely encode the implementation's assumptions.
+
+A suggested disclosure in a pull request is:
+
+> **AI assistance:** [Tool name, if applicable] was used to [briefly describe the contribution, such as drafting tests, refactoring, or preparing documentation]. I reviewed the resulting changes and verified them with [tests/checks, or state that no automated checks were run].
+
+There is no blanket requirement to avoid AI tools or to disclose every minor use. The goal is accountable, reviewable contributions—not tool policing.
+
+## Pull request expectations
+
+A pull request should help reviewers understand both the change and its evidence. Include, as applicable:
+
+- **Purpose:** the problem being solved and relevant issue/discussion.
+- **Scope:** what changed and what intentionally did not change.
+- **Design:** important decisions, alternatives, and compatibility implications.
+- **Validation:** commands and tests actually executed, plus any untested areas.
+- **Operational impact:** performance, memory, retry, recovery, security, and publication implications where relevant.
+- **AI assistance:** a short disclosure when AI materially contributed, as described above.
+
+Keep pull requests focused. Large generated changes should be split into reviewable units where practical. Do not use AI to manufacture reviews, test evidence, benchmark results, citations, or contributor identity.
+
 ## Reporting bugs
 
 Include:
+
 - UDC version or commit.
 - Operating system and Rust toolchain.
 - Source and target format.
