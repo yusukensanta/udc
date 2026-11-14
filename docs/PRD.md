@@ -57,6 +57,7 @@ Modern lakehouse architectures use multiple table formats:
 - Apache Iceberg
 - Delta Lake
 - Apache Hudi
+- Lance Table Format
 
 Moving between these formats requires handling more than physical data files. Metadata, snapshots, delete semantics, partition specifications, and catalog state must be considered.
 
@@ -141,31 +142,55 @@ Typical use cases:
 
 UDC will support two distinct categories of data representation.
 
-### 5.1 File Formats
+### 5.1 File and Columnar Formats
 
-| Format | Read | Write | Priority |
-|---|---|---|---|
-| Apache Parquet | Yes | Yes | P0 |
-| CSV | Yes | Yes | P0 |
-| JSON | Yes | Yes | P0 |
-| Apache ORC | Planned | Planned | P1 |
-| Apache Avro | Planned | Planned | P1 |
-| Apache Arrow IPC | Planned | Planned | P2 |
+UDC's scope includes general-purpose row/columnar serialization formats, Arrow-based interchange formats, and newer analytical/ML-oriented columnar formats.
 
-Actual support will be determined by implemented adapter capabilities.
+| Format | Read | Write | Priority | Notes |
+|---|---|---|---|---|
+| Apache Parquet | Yes | Yes | P0 | Primary analytical columnar format |
+| CSV | Yes | Yes | P0 | Interchange format |
+| JSON / JSONL | Yes | Yes | P0 | Interchange and semi-structured data |
+| Apache Avro | Planned | Planned | P1 | Row-oriented serialization with schema evolution |
+| Apache ORC | Planned | Planned | P1 | Columnar analytical format |
+| Apache Arrow IPC / Feather | Planned | Planned | P1 | Arrow-native interchange and file representation |
+| Lance File Format | Planned | Planned | P2 | Cloud-object-store-oriented, random-access columnar container |
+| Vortex | Planned | Planned | P2 | Modern columnar format with modular encoding and execution-oriented design |
+
+**Important distinction:** Lance is not only a file format. The broader Lance specification also defines table, index, catalog, and namespace layers. UDC must model Lance File Format and Lance Table Format as separate capabilities. Vortex is included as a columnar data format; its evolving reader/writer and ecosystem support must be validated independently.
+
+Actual support is determined by implemented adapter capabilities, not by inclusion in this roadmap.
 
 ### 5.2 Table Formats
 
-| Format | Capability | Priority |
-|---|---|---|
-| Apache Iceberg | Inspection and metadata reading | P0 |
-| Apache Iceberg | Data file rewrite | P1 |
-| Delta Lake | Integration | P2 |
-| Apache Hudi | Integration | P2 |
+| Format | Capability | Priority | Notes |
+|---|---|---|---|
+| Apache Iceberg | Inspection and metadata reading | P0 | Initial table-format integration |
+| Apache Iceberg | Data file rewrite | P1 | Preserve table semantics and commit safely |
+| Delta Lake | Integration | P2 | Includes protocol feature compatibility |
+| Apache Hudi | Integration | P2 | Includes timeline and table-type semantics |
+| Lance Table Format | Inspection and metadata reading | P2 | Separate from Lance file reader/writer |
+| Lance Table Format | Migration / rewrite | P3 | Must account for fragments, deletions, indices, manifests, and commits |
 
 Table format migration must preserve logical table semantics.
 
-UDC must explicitly identify unsupported features rather than silently ignoring them.
+UDC must explicitly identify unsupported features rather than silently ignoring them. File-format conversion must not be represented as table-format migration when snapshots, deletes, indexes, manifests, or transaction semantics are involved.
+
+
+
+### 5.4 Format Taxonomy and Semantic Boundaries
+
+UDC must not treat every supported item as the same kind of format.
+
+| Category | Examples | UDC responsibility |
+|---|---|---|
+| Row-oriented serialization | Avro, CSV, JSON | Record decoding/encoding and schema mapping |
+| Columnar file format | Parquet, ORC, Lance File, Vortex | Column/page decoding, encoding, projection, writing |
+| In-memory / interchange | Arrow IPC / Feather | Arrow-compatible batch interchange |
+| Table format | Iceberg, Delta, Hudi, Lance Table | Snapshot, manifest, fragment, delete, index, and commit semantics |
+| Catalog / namespace | Glue, REST Catalog, Lance Namespace | Discovery, registration, and coordination |
+
+Lance requires special treatment: the Lance ecosystem specifies file, table, index, catalog, and namespace layers independently. A Lance file adapter alone does not imply Lance table interoperability. Vortex is included as a columnar format target, but the project must verify the maturity and feature coverage of the selected Rust libraries before committing to read/write guarantees.
 
 ### 5.3 Cloud Storage
 
@@ -374,8 +399,8 @@ Initial demonstration: **Amazon S3 → Google Cloud Storage**
 | Streaming | Required |
 | Checkpoint | Deferred |
 | Spark Integration | Deferred |
-| ORC | Deferred |
-| Full Iceberg Migration | Deferred |
+| ORC / Avro / Arrow IPC | Deferred |
+| Full Iceberg / Delta / Hudi / Lance Table Migration | Deferred |
 
 Azure support is a target capability, but its exact inclusion in the first release depends on integration test coverage.
 
@@ -437,13 +462,12 @@ Capability discovery must determine which operations are supported by each engin
 
 Table format integrations must handle:
 
-- Table metadata.
-- Snapshots.
-- Schema evolution.
-- Partition specifications.
-- Delete semantics.
-- Commit operations.
+- Table metadata and snapshots.
+- Schema evolution and partition specifications.
+- Delete semantics and transactional commits.
 - Catalog integration.
+- Table-specific structures such as Lance fragments, indices, manifests, and deletion files.
+- Explicit capability negotiation for features not shared by all table formats.
 
 Existing implementations should be reused wherever practical.
 
