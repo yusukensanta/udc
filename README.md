@@ -25,11 +25,15 @@ See the [PRD](docs/PRD.md) for scope, requirements, acceptance criteria, propose
 
 - Rust
 - Apache Arrow
-- Apache Arrow (in-memory interchange)
 - Native Arrow pipeline (MVP reference path)
 - Apache DataFusion / DuckDB (execution candidates under evaluation)
 - Rust object_store ecosystem (storage candidate under evaluation)
-- OpenTelemetry (observability candidate)
+- Tokio (async runtime candidate; bounded concurrency required)
+- clap / Serde (CLI and configuration candidates)
+- tracing / OpenTelemetry (observability candidates)
+- thiserror / anyhow (typed and application error handling candidates)
+
+UDC is designed for datasets larger than process memory: bounded streaming, byte-aware backpressure, partitionable work units, independent I/O and CPU limits, and recoverable staging are architectural requirements. The MVP remains single-node; the work plan is designed to preserve a future scale-out path.
 
 See [docs/adr](docs/adr/) for decision rationale, alternatives, trade-offs, and validation plans. Proposed decisions are not finalized.
 
