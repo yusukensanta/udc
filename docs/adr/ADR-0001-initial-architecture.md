@@ -51,6 +51,7 @@ Each concern has one owner. The table states what the concern owns, what it must
 | Orchestration | Planning, work-unit scheduling, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, storage consistency semantics, validation semantics, or the publication protocol | ADR-0012 |
 | Job State Store | Durable Job/Plan/Work Unit/Attempt/Publication records, legal transitions, atomic acceptance, recovery, and explicit resume | Dataset payload I/O, format decoding, or table transactions | ADR-0013 |
 | Generic Publisher | File/dataset staging layout, output manifest, and visibility commit protocol | Table-native transactions, or inventing atomic rename | ADR-0017 |
+| Packaging and distribution | Distribution channels, official targets and feature set, crate and binary naming, release pipeline, and the public-release gate | Cargo feature mechanics, or persisted-state versioning | ADR-0019 |
 
 ### 3.4 Reuse mature implementations instead of reimplementing protocols
 
@@ -74,7 +75,7 @@ The initial deliverable should be a single deployable CLI/library with internal 
 | 0008 | Error taxonomy, error codes, and retry eligibility/backoff | Persisting attempt state, output acceptance, job failure policy, and resume |
 | 0009 | CLI, user configuration, and configuration precedence | Internal job state representation and credential resolution |
 | 0010 | Telemetry instrumentation and export | Business state machine |
-| 0011 | Workspace/dependency/feature graph | Runtime architecture decisions and per-concern library selection |
+| 0011 | Workspace/dependency/feature graph, and which crates are published | Runtime architecture decisions, per-concern library selection, crate naming, and what the official binary contains |
 | 0012 | Job planning, work-unit granularity, scheduler policy, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, legal state transitions, resume, and the publication protocol |
 | 0013 | Job/Plan/Work Unit/Attempt/Publication records, execution generations, state transitions, atomicity, durability, single-node recovery, and explicit resume | Data I/O and scheduling policy; distributed backend selection |
 | 0014 | File-format adapter contract, safe splits, streaming reader/writer capabilities | Job scheduling and retry/state |
@@ -82,6 +83,7 @@ The initial deliverable should be a single deployable CLI/library with internal 
 | 0016 | Cloud identity resolution, credential source, and refresh policy | Object byte operations and CLI syntax |
 | 0017 | Generic Publisher: file/dataset staging layout, output manifest, visibility commit, reconciliation, and staging cleanup rules | Table-native transaction protocol; when publication is invoked |
 | 0018 | Future multi-worker JobStateStore backend, leases, and distributed coordination | Logical state model and MVP local backend |
+| 0019 | Distribution channels, official binary targets and feature set, crate and binary naming, release pipeline and provenance, upgrade communication, and the public-release gate | Cargo feature mechanics, persisted-state migration, and per-concern library selection |
 
 ## 5. Shared vocabulary
 
@@ -127,6 +129,7 @@ All project documents use these terms with the meaning given by the defining ADR
 15. ADR-0008 owns error categories and retry disposition. Other documents reference those categories instead of defining their own lists.
 16. ADR-0009 owns configuration precedence. A recovered or resumed job uses the effective configuration persisted under ADR-0013, not the current environment.
 17. ADRs carry no priority labels. Capability priority (P0–P3) and roadmap phases (Phase 0–7) are defined only in the PRD.
+18. ADR-0019 owns what the official binary contains, which targets are built, and crate naming. ADR-0011 owns which crates are published and how crates and Cargo features are arranged to produce the official binary.
 
 When ADRs appear to conflict, the authoritative owner in the scope map takes precedence and dependent ADRs must be amended to reference it.
 
@@ -168,7 +171,7 @@ Rejected because it duplicates mature ecosystem implementations and creates a la
 
 **Owns:** architecture principles, the responsibility map, the ADR scope map, shared vocabulary, and cross-ADR conflict resolution.
 
-**Does not own:** any detailed contract. Each one belongs to the ADR named in the scope map (ADR-0002 through ADR-0018).
+**Does not own:** any detailed contract. Each one belongs to the ADR named in the scope map (ADR-0002 through ADR-0019).
 
 ## 12. Revisit conditions
 
@@ -185,6 +188,7 @@ Revisit this ADR if the modular monolith prevents independent scaling, if Rust e
 - [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)
 - [ADR-0009: CLI and Job Configuration](ADR-0009-cli-and-configuration.md)
 - [ADR-0010: Observability and Telemetry](ADR-0010-observability.md)
+- [ADR-0011: Dependency and Feature Management](ADR-0011-dependency-and-feature-management.md)
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
 - [ADR-0014: File Format Adapter Contract](ADR-0014-file-format-adapter-contract.md)
@@ -192,3 +196,4 @@ Revisit this ADR if the modular monolith prevents independent scaling, if Rust e
 - [ADR-0016: Cloud Authentication and Credential Resolution](ADR-0016-cloud-authentication.md)
 - [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)
 - [ADR-0018: Distributed Job State Store](ADR-0018-distributed-job-state-store.md)
+- [ADR-0019: Packaging, Release, and Distribution](ADR-0019-packaging-and-distribution.md)
