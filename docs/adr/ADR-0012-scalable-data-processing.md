@@ -162,11 +162,9 @@ A worker should be stateless between attempts. It receives a Work Unit descripto
 
 Worker code must not independently decide global retries or publish a whole job. The Scheduler and Job Coordinator own those semantics.
 
-### 6.4 Job State Store / Manifest
+### 6.4 Job State Store boundary
 
-The state store is the durable source of truth for job and work-unit progress when resumability is enabled. The initial implementation may use a local durable manifest. Its interface should not assume a shared local filesystem so a future remote state store can be added.
-
-The manifest must be versioned and support recovery after process termination. Updates to unit state must be conditional or serialized so duplicate attempts cannot both become the accepted output.
+The processing architecture depends on a durable JobStateStore, but does not define its persisted schema or legal transitions. Those are exclusively owned by [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md). The Scheduler invokes the State Store contract to claim work and report outcomes; it must not maintain a competing authoritative state machine.
 
 ### 6.5 Publisher
 
@@ -283,51 +281,36 @@ The system must avoid a few huge units monopolizing all slots while millions of 
 
 Target output file size must be configurable. It is a workload-specific optimization, not a universal magic number. UDC should expose file count and size distribution so users can tune downstream scan efficiency. Partition fan-out must be bounded to avoid generating many tiny output files.
 
-## 11. Job state, checkpoint, retry, and publication
+## 11. Completion, checkpoint, and publication workflow
 
-### 11.1 State machine
+The authoritative Job, Work Unit, Attempt, and Publication state machines, legal transitions, atomicity, durability, and crash-recovery protocol are defined only by [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md). This section describes processing-layer behavior that uses those guarantees.
 
-Job state:
-- `PLANNING`
-- `READY`
-- `RUNNING`
-- `VALIDATING`
-- `PUBLISHING`
-- `SUCCEEDED`
-- `FAILED`
-- `CANCELLED`
+### 11.1 Work Unit completion boundary
 
-Work Unit state:
-- `PENDING`
-- `READY`
-- `RUNNING`
-- `STAGED`
-- `VALIDATING`
-- `COMPLETED`
-- `RETRY_WAIT`
-- `FAILED`
-- `CANCELLED`
+A Work Unit is eligible for durable completion only after:
+1. Its Attempt has written output to isolated staging.
+2. The writer reports durable completion according to the destination adapter contract.
+3. The configured validation policy has produced the required evidence.
+4. ADR-0013 accepts exactly one Attempt and durably records the output reference.
 
-State transitions must be validated. A Work Unit must not transition to COMPLETED until its staged output and required validation result are durable and its accepted attempt is unambiguous.
+### 11.2 Checkpoint granularity
 
-### 11.2 Checkpoint boundaries
+For this ADR, a checkpoint means the boundary between independently completed Work Units. Safe resume from inside a Work Unit is format-adapter-specific and is not assumed. ADR-0013 defines how completed units are persisted and recovered.
 
-A checkpoint records completed work and the exact input identity/range and output reference that produced it. For mutable sources, a job must pin immutable object versions/ETags or explicitly declare a best-effort consistency model.
-
-A retry must not resume halfway through a compressed stream unless the format adapter exposes a safe resumable position. In the general case, retry the entire Work Unit from its beginning and discard or quarantine its previous attempt output.
+For mutable sources, the Plan must pin object versions/ETags or state an explicit best-effort consistency model. A retry should restart the whole Work Unit unless the format adapter exposes a safe deterministic resume position.
 
 ### 11.3 Idempotency and duplicate attempts
 
-- Work Unit IDs are stable across retries.
-- Attempt output keys include attempt identity or use a deterministic conditional-write strategy.
-- Only one attempt may be accepted for a Work Unit.
-- Duplicate/late attempts must not overwrite accepted outputs.
-- The manifest update that accepts an attempt must use compare-and-swap, a transaction, or equivalent serialization.
-- Garbage collection of abandoned outputs must be delayed until they are provably unreferenced.
+- Work Unit identity is stable across Attempts.
+- Every Attempt writes to isolated output ownership.
+- Worker success is not equivalent to Work Unit completion.
+- The State Store decides which validated Attempt is accepted.
+- Late or duplicate Attempts cannot overwrite accepted output.
+- Error classification and retry budget are owned by ADR-0008.
 
 ### 11.4 Publication
 
-All outputs remain in staging until the job's publication policy succeeds. The Publisher uses destination-specific semantics. Object-store publication may require a final manifest/pointer or commit marker rather than rename. Table format writes must use their own atomic commit protocol.
+The Publisher is an orchestration component. It invokes destination-specific publication capabilities only after the State Store confirms required Work Units and validations are complete. Storage semantics are owned by ADR-0005; validation semantics by ADR-0006; table-format commits by table-format adapters. ADR-0013 records publication outcome and recovery references.
 
 ## 12. Scale-out boundary
 
