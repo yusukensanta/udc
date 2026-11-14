@@ -10,7 +10,7 @@ Its goal is to make data portable, verifiable, and reliable across file formats,
 
 ## Product pillars
 
-- **Format interoperability:** Parquet, ORC, Avro, CSV, JSON, Arrow, Iceberg, Delta Lake, and Hudi.
+- **Layered format support:** Distinguishes serialization formats, columnar file formats, interchange formats, table formats, and catalogs. Parquet, ORC, Avro, CSV, JSON, Arrow IPC / Feather, Lance, Vortex, Iceberg, Delta Lake, and Hudi.
 - **Cloud-agnostic storage:** Amazon S3, Google Cloud Storage, and Azure Blob Storage.
 - **Reliable migration:** staged output, retry, checkpointing, and safe publication.
 - **Data integrity:** schema compatibility and logical data validation.
