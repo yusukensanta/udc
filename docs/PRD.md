@@ -445,18 +445,22 @@ A separate canonical logical schema model will describe type semantics and conve
 
 ### 9.3 Execution Engine Abstraction
 
-Initial engine:
+UDC Core must not require a query engine for a pure streaming conversion path.
 
-- Apache DataFusion
+Reference path for conversion-only workloads:
 
-Potential integrations:
+- Format Reader → Arrow RecordBatch Stream → Format Writer
 
-- DuckDB
-- Apache Spark
+Execution engine candidates:
 
-UDC must not require all execution engines to implement identical capabilities.
+- Native Arrow / format reader-writer pipeline (baseline).
+- Apache DataFusion.
+- DuckDB.
+- Apache Spark (later distributed-execution integration candidate).
 
-Capability discovery must determine which operations are supported by each engine.
+The MVP must compare Native Arrow, DataFusion, and DuckDB before selecting an engine dependency. See [ADR-0004: Execution Engine Selection](adr/ADR-0004-execution-engine-selection.md).
+
+UDC must not require all execution backends to implement identical capabilities. Capability discovery must determine which operations are supported by each backend.
 
 ### 9.4 Table Format Abstraction
 
@@ -475,20 +479,20 @@ Existing implementations should be reused wherever practical.
 
 | Component | Technology |
 |---|---|
-| Core | Rust |
-| In-memory Representation | Apache Arrow |
-| Query / Execution | Apache DataFusion |
-| Local Analytics Integration | DuckDB |
-| Distributed Execution | Apache Spark |
-| Cloud Storage | object_store ecosystem |
-| Iceberg Integration | Apache Iceberg Rust |
-| Delta Integration | Delta Kernel |
-| Observability | OpenTelemetry |
+| Component | Candidate / Direction |
+|---|---|
+| Core language | Rust (ADR-0002) |
+| In-memory interchange | Apache Arrow |
+| Execution | Native Arrow baseline; DataFusion and DuckDB under evaluation (ADR-0004) |
+| Distributed execution | Apache Spark, deferred integration candidate |
+| Cloud storage | Rust object_store ecosystem under evaluation (ADR-0005) |
+| Canonical schema | UDC-owned logical model proposed; Arrow for execution representation (ADR-0003) |
+| Iceberg integration | Apache Iceberg Rust, subject to capability review |
+| Delta integration | Delta Kernel, subject to language/API integration review |
+| Observability | OpenTelemetry candidate |
 | CLI | Rust CLI ecosystem |
-| Configuration | YAML / JSON |
+| Configuration | YAML / JSON (to be specified) |
 | Documentation | Markdown |
-
-Technology choices remain subject to technical validation and Architecture Decision Records.
 
 ## 11. Repository Structure
 
@@ -594,15 +598,15 @@ GitHub Stars are supplementary indicators, not the primary success metric.
 
 ## 16. Open Questions
 
-The following decisions must be resolved through Architecture Decision Records:
+The following decisions are tracked in Architecture Decision Records. Items marked Proposed or Under Evaluation are not finalized:
 
-1. Canonical logical type system design.
-2. Arrow integration boundaries.
-3. DataFusion integration strategy.
-4. Storage abstraction and object_store limitations.
-5. Cloud authentication abstraction.
-6. Conversion job state management.
-7. Checksum and logical equality semantics.
+1. Rust implementation language — ADR-0002 (Accepted).
+2. Canonical logical schema and Arrow execution boundary — ADR-0003 (Proposed).
+3. Execution backend selection — ADR-0004 (Proposed; PoC required).
+4. Storage abstraction and provider capabilities — ADR-0005 (Proposed).
+5. Validation and logical equality semantics — ADR-0006 (Proposed).
+6. Cloud authentication abstraction.
+7. Conversion job state management and publication semantics.
 8. Table format integration boundaries.
 9. Static versus dynamic plugin architecture.
 10. License compatibility of external dependencies.
