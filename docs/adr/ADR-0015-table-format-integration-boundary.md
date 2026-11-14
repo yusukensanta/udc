@@ -3,7 +3,7 @@
 - **Status:** Proposed
 - **Date:** 2026-11-15
 - **Decision owners:** UDC maintainers
-- **Priority:** P0
+- **Scope:** The TableFormatAdapter boundary: table snapshot and consistency semantics, the table capability model, and native table commits.
 
 ## 1. Context
 
@@ -61,6 +61,8 @@ No table format is considered fully supported by a generic file adapter alone.
 - credential/endpoint handling through ADR-0016;
 - catalog-level conditional or transactional behavior where the catalog protocol provides it.
 
+No ADR owns the CatalogAdapter contract yet. This subsection fixes only its boundary with the TableFormatAdapter; a dedicated ADR is required before a catalog integration is implemented.
+
 ### 5.4 StorageAdapter owns
 
 - bytes, object versions/ETags, range reads, uploads, listing, and provider operations (ADR-0005).
@@ -117,15 +119,31 @@ For each table adapter, test:
 - crash before and after commit acknowledgement;
 - idempotent reconciliation when commit succeeded but the client lost the response.
 
-## 11. Revisit conditions
+## 11. Ownership boundary
+
+**Owns:** the TableFormatAdapter boundary, snapshot and consistency semantics for table reads, the table capability model, and table-native commit and conflict semantics. It sketches the CatalogAdapter boundary until a dedicated ADR exists.
+
+**Does not own:**
+- Publication of generic file/dataset output — ADR-0017.
+- Decoding and encoding data files — ADR-0014.
+- Object and byte operations — ADR-0005.
+- Identity for storage and catalog endpoints — ADR-0016.
+- Recording commit intent and outcome, and recovery — ADR-0013.
+- Planning and scheduling of rewrite work — ADR-0012.
+- Validation evidence required before a commit — ADR-0006.
+- Logical type semantics used in cross-format mapping — ADR-0003.
+
+## 12. Revisit conditions
 
 Revisit when UDC chooses a table format for a production migration release or when an existing library cannot expose the required commit/snapshot controls.
 
-## Related ADRs
+## 13. Related ADRs
 
 - [ADR-0003: Canonical Data Model and Schema Compatibility](ADR-0003-canonical-data-model.md)
 - [ADR-0005: Storage Abstraction](ADR-0005-storage-abstraction.md)
 - [ADR-0006: Validation Semantics](ADR-0006-validation-semantics.md)
+- [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
+- [ADR-0014: File Format Adapter Contract](ADR-0014-file-format-adapter-contract.md)
 - [ADR-0016: Cloud Authentication and Credential Resolution](ADR-0016-cloud-authentication.md)
 - [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)

@@ -3,7 +3,7 @@
 - **Status:** Proposed
 - **Date:** 2026-11-15
 - **Decision owners:** UDC maintainers
-- **Priority:** P2
+- **Scope:** The future multi-worker JobStateStore backend, its lease protocol, and distributed coordination requirements. Deferred; not part of the MVP.
 
 ## 1. Context
 
@@ -47,6 +47,7 @@ A backend must support, directly or through a safe transaction:
 - acceptance of exactly one validated Attempt for a Work Unit;
 - atomic transition of Work Unit to COMPLETED with accepted output reference;
 - idempotent publication-intent/result recording;
+- the resume transition of ADR-0013 (a new execution generation plus Work Unit resets) as one atomic operation;
 - bounded queries for ready, retryable, and expired-lease units;
 - schema migration and backup/restore procedures;
 - visibility/consistency semantics documented for reads after writes.
@@ -70,7 +71,7 @@ Job state transitions require a consistency level strong enough to prevent two w
 
 Temporary state-store unavailability must stop new admission and must not cause workers to publish outputs independently. Workers may finish an already running isolated attempt, but acceptance and publication wait until authoritative state can be updated.
 
-## 8. Scale-out boundary
+## 8. Adoption triggers
 
 Distributed State Store selection is triggered only when at least one of the following is demonstrated:
 - single-node CPU/network resources are saturated and throughput needs more nodes;
@@ -82,16 +83,27 @@ Do not add distributed state merely to claim horizontal scalability. Until this 
 
 ## 9. Validation plan
 
-Run concurrent-claim tests, duplicate delivery, worker pause beyond lease expiry, split-brain/stale worker completion, coordinator restart, state-store failover, network partitions, transaction conflicts, and publication acknowledgement loss. Verify only one Attempt becomes accepted and no worker can make data visible without the Publisher.
+Run concurrent-claim tests, duplicate delivery, worker pause beyond lease expiry, split-brain/stale worker completion, coordinator restart, state-store failover, network partitions, transaction conflicts, and publication acknowledgement loss. Verify only one Attempt becomes accepted and no worker can make data visible except through the Generic Publisher (ADR-0017) or a table-native commit (ADR-0015).
 
 Benchmark transition throughput and query latency at realistic Work Unit cardinalities. Include backup, restore, migration, and operational cost in the decision.
 
-## 10. Revisit conditions
+## 10. Ownership boundary
+
+**Owns:** selection of a distributed JobStateStore backend, the lease and duplicate-delivery protocol, and the consistency and availability requirements of distributed coordination.
+
+**Does not own:**
+- The logical state model, legal transitions, and the resume contract — ADR-0013. A distributed backend implements them unchanged.
+- The MVP local backend — ADR-0013.
+- Scheduling policy and the worker contract — ADR-0012.
+- Making output visible — ADR-0017.
+
+## 11. Revisit conditions
 
 Accept a concrete backend only when the project commits to multi-worker execution. Record the selected DB/product, transaction isolation assumptions, schema/index design, retention policy, backup/restore, availability target, and operational responsibilities in a superseding ADR or this ADR's accepted revision.
 
-## Related ADRs
+## 12. Related ADRs
 
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
+- [ADR-0015: Table Format Integration Boundary](ADR-0015-table-format-integration-boundary.md)
 - [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)

@@ -3,7 +3,7 @@
 - **Status:** Proposed
 - **Date:** 2026-11-15
 - **Decision owners:** UDC maintainers
-- **Priority:** P0
+- **Scope:** The FileFormatAdapter contract: the capability descriptor, inspection, safe split planning, and streaming reader and writer behavior.
 
 ## 1. Context
 
@@ -95,7 +95,7 @@ Writer contract requirements:
 - never publish the job destination;
 - surface whether writer close means bytes are durably accepted by the Storage adapter or only flushed to an intermediate buffer.
 
-Final visibility is owned by the Publisher under ADR-0017.
+Final visibility is owned by the Generic Publisher under ADR-0017.
 
 ### 5.6 Schema mapping boundary
 
@@ -103,7 +103,7 @@ Adapters map physical schemas to/from the canonical logical schema defined in AD
 
 ## 6. Error and resource contract
 
-- Return typed errors for corrupt input, unsupported feature, invalid options, schema mismatch, transient I/O failure, and resource exhaustion.
+- Return typed errors that map to the categories of ADR-0008: Data (corrupt input), Compatibility (unsupported feature, schema mismatch), Configuration (invalid options), Transient (transient I/O failure), and Resource (resource exhaustion).
 - Include safe source/split context without leaking credentials or signed URLs.
 - Allow scheduler-provided resource limits for read concurrency, batch size/bytes, and writer buffering.
 - CPU-intensive decode/encode work must follow ADR-0007 execution constraints.
@@ -115,7 +115,7 @@ SplitDescriptors must include an adapter/descriptor version. A stored plan must 
 
 Public adapter contracts should be narrow and stable. Internal library wrappers may evolve independently behind the contract.
 
-## 8. Testing strategy
+## 8. Validation plan
 
 Every adapter must provide:
 - format conformance fixtures and malformed/corrupt input tests;
@@ -126,15 +126,31 @@ Every adapter must provide:
 - compatibility matrix by adapter/library version;
 - integration tests using fake/local Storage and real object storage where relevant.
 
-## 9. Revisit conditions
+## 9. Ownership boundary
+
+**Owns:** the adapter contract, the capability descriptor, SplitDescriptors and their versioning, and the obligations of streaming readers and writers.
+
+**Does not own:**
+- Work Unit identity, scheduling, and resource-budget values — ADR-0012.
+- Attempt state, acceptance, and checkpoints — ADR-0013.
+- Error categories and retry eligibility — ADR-0008.
+- Logical type semantics and cross-format coercion policy — ADR-0003.
+- Object I/O — ADR-0005.
+- Final visibility of written output — ADR-0017.
+- Table-level semantics above data files — ADR-0015.
+- CPU and blocking-work execution constraints — ADR-0007.
+
+## 10. Revisit conditions
 
 Revisit when a new format exposes capabilities that cannot fit the current contract without format-specific extensions, or when Arrow is not a viable interchange for a supported format. Do not add a universal feature merely because one format supports it.
 
-## Related ADRs
+## 11. Related ADRs
 
 - [ADR-0003: Canonical Data Model and Schema Compatibility](ADR-0003-canonical-data-model.md)
 - [ADR-0005: Storage Abstraction](ADR-0005-storage-abstraction.md)
-- [ADR-0006: Validation Semantics](ADR-0006-validation-semantics.md)
+- [ADR-0007: Async Runtime and Concurrency Control](ADR-0007-async-runtime-and-concurrency.md)
+- [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
+- [ADR-0015: Table Format Integration Boundary](ADR-0015-table-format-integration-boundary.md)
 - [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)
