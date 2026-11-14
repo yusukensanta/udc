@@ -428,12 +428,15 @@ Initial demonstration: **Amazon S3 → Google Cloud Storage**
 | CLI | Required |
 | Local Execution | Required |
 | Streaming | Required |
-| Checkpoint | Deferred |
+| Durable local Job Manifest / State Store | Required |
+| Durable Work Unit state and restart resume | Required |
 | Spark Integration | Deferred |
 | ORC / Avro / Arrow IPC | Deferred |
 | Full Iceberg / Delta / Hudi / Lance Table Migration | Deferred |
 
 Azure support is a target capability, but its exact inclusion in the first release depends on integration test coverage.
+
+Partial progress inside a Work Unit, distributed leases, shared multi-writer state, remote Workers, and a built-in distributed Coordinator are deferred. The MVP must durably record completed Work Units and safely resume remaining work after process restart. See [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md).
 
 ### MVP Acceptance Criteria
 
@@ -648,7 +651,7 @@ The following decisions are tracked in Architecture Decision Records. Items mark
 10. Workspace, dependency, and Cargo feature strategy — ADR-0011 (Proposed).
 11. Scalable processing model and future scale-out boundary — ADR-0012 (Proposed).
 12. Cloud authentication abstraction.
-13. Job manifest/state store and publication semantics.
+13. Local JobStateStore backend selection (SQLite vs append-only journal) and manifest implementation details — ADR-0013.
 14. Table format integration boundaries.
 15. License compatibility of external dependencies.
 
@@ -660,6 +663,7 @@ A release is considered production-ready when:
 - Compatibility tests pass.
 - Cloud integration tests pass.
 - Failure scenarios are tested.
+- Work Unit completion is durably recorded and process restart recovery is tested.
 - Performance benchmarks are reproducible.
 - Security review is completed.
 - CLI documentation is available.
