@@ -17,7 +17,7 @@ Its goal is to make data portable, verifiable, and reliable across file formats,
 
 ## MVP direction
 
-The initial MVP focuses on local and cross-cloud file conversion using Apache Arrow and Apache DataFusion, with schema and row-count validation.
+The initial MVP focuses on local and cross-cloud file conversion using a streaming reader-to-writer pipeline with Apache Arrow as the in-memory interchange layer, plus schema and row-count validation. The execution backend remains under evaluation; see [ADR-0004](docs/adr/ADR-0004-execution-engine-selection.md).
 
 See the [PRD](docs/PRD.md) for scope, requirements, acceptance criteria, proposed architecture, and roadmap.
 
@@ -25,11 +25,13 @@ See the [PRD](docs/PRD.md) for scope, requirements, acceptance criteria, propose
 
 - Rust
 - Apache Arrow
-- Apache DataFusion
-- object_store ecosystem
-- OpenTelemetry
+- Apache Arrow (in-memory interchange)
+- Native Arrow pipeline (MVP reference path)
+- Apache DataFusion / DuckDB (execution candidates under evaluation)
+- Rust object_store ecosystem (storage candidate under evaluation)
+- OpenTelemetry (observability candidate)
 
-All technology choices remain subject to Architecture Decision Records and implementation feasibility.
+See [docs/adr](docs/adr/) for decision rationale, alternatives, trade-offs, and validation plans. Proposed decisions are not finalized.
 
 ## Repository layout
 
