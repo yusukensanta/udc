@@ -37,6 +37,10 @@ UDC is designed for datasets larger than process memory: bounded streaming, byte
 
 Architecture contracts are being specified in ADRs: [File Format Adapters](docs/adr/ADR-0014-file-format-adapter-contract.md), [Table Formats](docs/adr/ADR-0015-table-format-integration-boundary.md), [Cloud Authentication](docs/adr/ADR-0016-cloud-authentication.md), [Publication](docs/adr/ADR-0017-output-publication-protocol.md), and [Distributed State](docs/adr/ADR-0018-distributed-job-state-store.md). See [docs/adr](docs/adr/) for rationale, alternatives, trade-offs, and validation plans. Proposed decisions are not finalized.
 
+## Future deployment direction
+
+The MVP is a standalone CLI/library. Self-hosted service deployment (for example, running UDC within an organization's AWS, GCP, or Azure environment) is a potential future direction, not a current requirement or selected architecture. A single-node service may be evaluated before any distributed control-plane/worker deployment. See [Future Considerations in the PRD](docs/PRD.md#future-considerations-non-mvp).
+
 ## Repository layout
 
 ```text
