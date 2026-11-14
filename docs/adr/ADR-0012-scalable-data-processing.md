@@ -98,7 +98,7 @@ If the source is mutable and no consistent snapshot/version can be pinned, UDC m
 
 ### 5.3 Work Unit
 
-A Work Unit is the smallest independently schedulable unit for which UDC can define input boundaries, output ownership, retry behavior, and completion criteria.
+A Work Unit is the smallest independently schedulable unit for which UDC can define input boundaries, output ownership, retry behavior, and completion criteria. Its format-native input boundary must originate from the safe SplitDescriptor contract in [ADR-0014](ADR-0014-file-format-adapter-contract.md); the Scheduler must not derive arbitrary splits itself.
 
 A Work Unit descriptor should contain:
 
@@ -310,7 +310,7 @@ For mutable sources, the Plan must pin object versions/ETags or state an explici
 
 ### 11.4 Publication
 
-The Publisher is an orchestration component. It invokes destination-specific publication capabilities only after the State Store confirms required Work Units and validations are complete. Storage semantics are owned by ADR-0005; validation semantics by ADR-0006; table-format commits by table-format adapters. ADR-0013 records publication outcome and recovery references.
+The Publisher is an orchestration component. For generic file/dataset outputs it follows [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md). Storage operations and conditional-write capabilities are owned by ADR-0005; validation semantics by ADR-0006; table-native commits by [ADR-0015](ADR-0015-table-format-integration-boundary.md). ADR-0013 records publication intent/outcome and recovery references.
 
 ## 12. Scale-out boundary
 
@@ -425,3 +425,10 @@ Revisit this ADR when:
 - [Tokio bounded channels and backpressure](https://tokio.rs/tokio/tutorial/channels)
 - [Amazon S3 multipart upload limits](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
 - [Apache Iceberg specification](https://iceberg.apache.org/spec/)
+
+
+## Related ADRs
+
+- [ADR-0014: File Format Adapter Contract](ADR-0014-file-format-adapter-contract.md)
+- [ADR-0015: Table Format Integration Boundary](ADR-0015-table-format-integration-boundary.md)
+- [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)
