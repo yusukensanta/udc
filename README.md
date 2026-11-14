@@ -35,7 +35,7 @@ See the [PRD](docs/PRD.md) for scope, requirements, acceptance criteria, propose
 
 UDC is designed for datasets larger than process memory: bounded streaming, byte-aware backpressure, partitionable work units, independent I/O and CPU limits, and recoverable staging are architectural requirements. The MVP remains single-node; the work plan is designed to preserve a future scale-out path.
 
-See [docs/adr](docs/adr/) for decision rationale, alternatives, trade-offs, and validation plans. Proposed decisions are not finalized.
+Architecture contracts are being specified in ADRs: [File Format Adapters](docs/adr/ADR-0014-file-format-adapter-contract.md), [Table Formats](docs/adr/ADR-0015-table-format-integration-boundary.md), [Cloud Authentication](docs/adr/ADR-0016-cloud-authentication.md), [Publication](docs/adr/ADR-0017-output-publication-protocol.md), and [Distributed State](docs/adr/ADR-0018-distributed-job-state-store.md). See [docs/adr](docs/adr/) for rationale, alternatives, trade-offs, and validation plans. Proposed decisions are not finalized.
 
 ## Repository layout
 
