@@ -33,17 +33,17 @@ UDC will not treat a physical file schema or an in-memory vector schema as the c
 
 | Concern | Owns | Must not own |
 |---|---|---|
-| Format adapters | Physical decode/encode, format metadata, safe split capabilities | Global scheduling, job state, retry policy |
-| Table adapters | Snapshot, manifest, delete, index, catalog, and table commit semantics | Generic file conversion orchestration |
+| Format adapters | Physical decode/encode, format metadata, safe split capabilities | Global scheduling, job state, retry policy; contract: [ADR-0014](ADR-0014-file-format-adapter-contract.md) |
+| Table adapters | Snapshot, manifest, delete, index, catalog, and table commit semantics; contract: [ADR-0015](ADR-0015-table-format-integration-boundary.md) | Generic file conversion orchestration |
 | Catalog adapters | Table discovery and registration protocols | Job execution lifecycle |
-| Storage adapters | Object bytes, range reads, listing, multipart primitives, provider capabilities | Work Unit completion or job state |
+| Storage adapters | Object bytes, range reads, listing, multipart primitives, provider capabilities | Work Unit completion or job state; identity: ADR-0016; publication: ADR-0017 |
 | Canonical schema | Logical type semantics and compatibility | Physical batch execution |
 | Execution backend | Batch processing and optional transformations | UDC Job/Attempt lifecycle or final publication |
 | Validation | Meaning and evidence of correctness checks | Scheduling and durable job state |
 | Runtime/concurrency | Async runtime and bounded execution primitives | Data conversion policy and durable manifest state |
 | Orchestration | Planning, work-unit scheduling, worker dispatch, staging/publication workflow | Storage consistency semantics or validation semantics |
 | Job State Store | Durable Job/Plan/Work Unit/Attempt state, legal transitions, atomicity and recovery | Dataset payload I/O, format decoding, table transaction implementation |
-| Publisher | Visibility/commit workflow using destination capabilities | Inventing atomic rename or table-format transactions |
+| Publisher | Generic file visibility protocol: [ADR-0017](ADR-0017-output-publication-protocol.md) | Inventing atomic rename or table-format transactions; table-native commits belong to ADR-0015 |
 
 Detailed ownership is recorded in the authoritative ADR map below.
 
@@ -124,7 +124,12 @@ Revisit this ADR if the modular monolith prevents independent scaling, if Rust e
 | 0010 | Telemetry instrumentation and export | Business state machine |
 | 0011 | Workspace/dependency/feature graph | Runtime architecture decisions |
 | 0012 | Job planning, work-unit granularity, scheduler policy, worker contract, resource budgets and publication workflow | Normative persisted state schema and legal state transitions |
-| 0013 | Job/Plan/Work Unit/Attempt/Publication records, state transitions, atomicity, durability and recovery | Data I/O and scheduling policy |
+| 0013 | Job/Plan/Work Unit/Attempt/Publication records, state transitions, atomicity, durability and single-node recovery | Data I/O and scheduling policy; distributed backend selection |
+| 0014 | File-format adapter contract, safe splits, streaming reader/writer capabilities | Job scheduling and retry/state |
+| 0015 | Table-format adapter boundary, snapshot semantics and native table commits | Generic file-output publication |
+| 0016 | Cloud identity resolution, credential source and refresh policy | Object byte operations and CLI syntax |
+| 0017 | Generic file/dataset staging, manifest and visibility commit protocol | Table-native transaction protocol |
+| 0018 | Future multi-worker JobStateStore backend, leases and distributed coordination | Logical state model and MVP local backend |
 
 ### Normative cross-ADR rules
 
@@ -136,5 +141,18 @@ Revisit this ADR if the modular monolith prevents independent scaling, if Rust e
 6. ADR-0013 owns durable state transitions and recovery. ADR-0012 must not define a competing state machine.
 7. ADR-0005 owns object-storage semantics. ADR-0013 may require conditional state operations but cannot assume they are supplied by an object store.
 8. Table-format publication must use the table format's commit protocol; a generic file publisher cannot bypass it.
+9. ADR-0014 defines format-specific split/reader/writer capabilities; ADR-0012 consumes them but cannot invent unsafe split boundaries.
+10. ADR-0015 owns table snapshot and native commit semantics. ADR-0017 applies only to generic file/dataset publication.
+11. ADR-0016 owns cloud identity resolution; ADR-0005 owns object operations using the resolved provider client.
+12. ADR-0013 owns the logical state contract and MVP local durability. ADR-0018 only selects a future distributed backend and coordination protocol; it cannot redefine ADR-0013's entity/state semantics.
 
 When ADRs appear to conflict, the authoritative owner above takes precedence and dependent ADRs must be amended to reference it.
+
+
+## Related ADRs
+
+- [ADR-0014: File Format Adapter Contract](ADR-0014-file-format-adapter-contract.md)
+- [ADR-0015: Table Format Integration Boundary](ADR-0015-table-format-integration-boundary.md)
+- [ADR-0016: Cloud Authentication and Credential Resolution](ADR-0016-cloud-authentication.md)
+- [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)
+- [ADR-0018: Distributed Job State Store](ADR-0018-distributed-job-state-store.md)
