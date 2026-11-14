@@ -29,15 +29,23 @@ Rust is the initial implementation language. This is a project-level direction, 
 
 UDC will not treat a physical file schema or an in-memory vector schema as the complete definition of a dataset's meaning. A canonical logical model will represent meaning and conversion constraints; physical format schemas and execution representations will be mapped to and from it. See [ADR-0003](ADR-0003-canonical-data-model.md).
 
-### 3. Keep format, storage, catalog, execution, validation, and orchestration boundaries independent
+### 3. Keep architectural responsibilities independent
 
-- **Format adapters** decode and encode file-level representations.
-- **Table adapters** implement table metadata, snapshot, delete, and commit semantics.
-- **Storage adapters** access bytes and object metadata.
-- **Catalog adapters** discover and register tables.
-- **Execution backends** perform supported transformations and data movement.
-- **Validation** defines correctness checks and comparison semantics.
-- **Orchestration** manages jobs, retries, checkpoints, staging, and publication.
+| Concern | Owns | Must not own |
+|---|---|---|
+| Format adapters | Physical decode/encode, format metadata, safe split capabilities | Global scheduling, job state, retry policy |
+| Table adapters | Snapshot, manifest, delete, index, catalog, and table commit semantics | Generic file conversion orchestration |
+| Catalog adapters | Table discovery and registration protocols | Job execution lifecycle |
+| Storage adapters | Object bytes, range reads, listing, multipart primitives, provider capabilities | Work Unit completion or job state |
+| Canonical schema | Logical type semantics and compatibility | Physical batch execution |
+| Execution backend | Batch processing and optional transformations | UDC Job/Attempt lifecycle or final publication |
+| Validation | Meaning and evidence of correctness checks | Scheduling and durable job state |
+| Runtime/concurrency | Async runtime and bounded execution primitives | Data conversion policy and durable manifest state |
+| Orchestration | Planning, work-unit scheduling, worker dispatch, staging/publication workflow | Storage consistency semantics or validation semantics |
+| Job State Store | Durable Job/Plan/Work Unit/Attempt state, legal transitions, atomicity and recovery | Dataset payload I/O, format decoding, table transaction implementation |
+| Publisher | Visibility/commit workflow using destination capabilities | Inventing atomic rename or table-format transactions |
+
+Detailed ownership is recorded in the authoritative ADR map below.
 
 ### 4. Reuse mature implementations instead of reimplementing protocols
 
@@ -97,3 +105,36 @@ Revisit this ADR if the modular monolith prevents independent scaling, if Rust e
 - [ADR-0010: Observability and Telemetry](ADR-0010-observability.md)
 - [ADR-0011: Dependency and Feature Management](ADR-0011-dependency-and-feature-management.md)
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
+- [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
+
+
+## 7. Authoritative ADR ownership and conflict resolution
+
+| ADR | Authoritative scope | Explicitly out of scope |
+|---|---|---|
+| 0001 | Architecture principles, responsibility map, conflict-resolution rules | Detailed implementation protocol |
+| 0002 | Core implementation language | Runtime, libraries, execution architecture |
+| 0003 | Canonical logical schema and mapping semantics | Arrow buffer execution and validation algorithms |
+| 0004 | Execution backend capabilities and selection | Job orchestration and durable state |
+| 0005 | Data object storage operations and provider capabilities | Job manifest and state transitions |
+| 0006 | Validation levels, normalization and equivalence guarantees | Job state and retry classification |
+| 0007 | Async runtime and runtime-level concurrency primitives | Global work scheduling policy and durable state |
+| 0008 | Error taxonomy and retry eligibility/backoff | Persisting attempt state and output acceptance |
+| 0009 | CLI and user configuration | Internal job state representation |
+| 0010 | Telemetry instrumentation and export | Business state machine |
+| 0011 | Workspace/dependency/feature graph | Runtime architecture decisions |
+| 0012 | Job planning, work-unit granularity, scheduler policy, worker contract, resource budgets and publication workflow | Normative persisted state schema and legal state transitions |
+| 0013 | Job/Plan/Work Unit/Attempt/Publication records, state transitions, atomicity, durability and recovery | Data I/O and scheduling policy |
+
+### Normative cross-ADR rules
+
+1. Each concern has one authoritative ADR as shown above. Other ADRs may reference it but must not redefine its normative contract.
+2. Proposed decisions are not finalized dependencies. PRD and README must preserve decision status.
+3. The MVP requires durable Work Unit completion and safe restart resume. Partial progress inside a Work Unit and distributed resume are future capabilities.
+4. Execution is at-least-once. Safe effects rely on attempt-isolated staging, conditional acceptance, validation and controlled publication; exactly-once task execution is not promised.
+5. ADR-0012 owns resource-budget policy and scheduling. ADR-0007 owns runtime primitives used to enforce it.
+6. ADR-0013 owns durable state transitions and recovery. ADR-0012 must not define a competing state machine.
+7. ADR-0005 owns object-storage semantics. ADR-0013 may require conditional state operations but cannot assume they are supplied by an object store.
+8. Table-format publication must use the table format's commit protocol; a generic file publisher cannot bypass it.
+
+When ADRs appear to conflict, the authoritative owner above takes precedence and dependent ADRs must be amended to reference it.
