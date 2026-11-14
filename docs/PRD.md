@@ -363,6 +363,37 @@ UDC must provide:
 - Execution engines must be replaceable.
 - Table format integrations must remain separate from file format implementations.
 
+### NFR-06: Scalability and Resource Isolation
+
+UDC must scale across dataset size, object count, data skew, and available compute/network resources.
+
+- Dataset size must not determine peak process memory. The default execution path must be streaming and bounded.
+- Every producer-consumer queue must have a configured finite capacity.
+- Memory admission control must account for bytes, not only batch or task counts.
+- Concurrency limits must be independently configurable for source reads, CPU decode/encode, destination writes, multipart parts, and per-provider requests.
+- CPU-heavy or blocking operations must not starve async I/O workers.
+- Large files and many-small-file workloads must have separately benchmarked execution strategies.
+- Work-unit scheduling must support independent progress, failure isolation, and retry.
+- The design must preserve a path to multi-process or multi-node execution without requiring it in the MVP.
+- Resource limits, queue pressure, active work units, in-flight bytes, and provider throttling must be observable.
+
+### NFR-07: Recovery and Idempotency
+
+- Work units must have stable identities within a job plan.
+- Acknowledgement must occur only after the output is durably written and required validation succeeds.
+- Retries must use deterministic or attempt-specific staging outputs.
+- A failed or abandoned attempt must not be published as complete.
+- Recovery must reconcile incomplete multipart uploads and staging artifacts.
+- Exactly-once execution is not assumed; safe effects must be achieved through idempotency, staging, validation, and publication boundaries.
+
+### NFR-08: Operational Efficiency
+
+- Effective job settings and resource budgets must be inspectable before execution.
+- Jobs must expose progress by work units and bytes, with unknown totals represented honestly.
+- Telemetry must work locally without a mandatory collector or hosted control plane.
+- High-cardinality values such as object paths must not become metric labels.
+
+
 ## 8. MVP Definition
 
 ### MVP Goal
@@ -416,6 +447,9 @@ Azure support is a target capability, but its exact inclusion in the first relea
 8. Avoid exposing incomplete output as successful.
 9. Provide reproducible CLI examples.
 10. Pass automated unit and integration tests.
+11. Demonstrate bounded memory on an input dataset substantially larger than the configured memory budget.
+12. Demonstrate bounded concurrency and backpressure when the destination is slower than the source.
+13. Demonstrate isolated retry of a failed work unit without republishing completed outputs.
 
 ## 9. Architecture Principles
 
@@ -550,6 +584,8 @@ udc/
 
 The roadmap is capability-driven, not strictly time-driven.
 
+Scalability is a cross-cutting acceptance requirement, not a late roadmap phase. The MVP remains single-node, but planning and work-unit boundaries should permit future remote execution. See [ADR-0012: Scalable Data Processing Architecture](adr/ADR-0012-scalable-data-processing.md).
+
 ## 13. Success Metrics
 
 ### Technical Metrics
@@ -605,11 +641,16 @@ The following decisions are tracked in Architecture Decision Records. Items mark
 3. Execution backend selection — ADR-0004 (Proposed; PoC required).
 4. Storage abstraction and provider capabilities — ADR-0005 (Proposed).
 5. Validation and logical equality semantics — ADR-0006 (Proposed).
-6. Cloud authentication abstraction.
-7. Conversion job state management and publication semantics.
-8. Table format integration boundaries.
-9. Static versus dynamic plugin architecture.
-10. License compatibility of external dependencies.
+6. Async runtime and concurrency control — ADR-0007 (Proposed).
+7. Error taxonomy, retry classification, and failure boundaries — ADR-0008 (Proposed).
+8. CLI and job configuration format — ADR-0009 (Proposed).
+9. Tracing, metrics, and OpenTelemetry integration — ADR-0010 (Proposed).
+10. Workspace, dependency, and Cargo feature strategy — ADR-0011 (Proposed).
+11. Scalable processing model and future scale-out boundary — ADR-0012 (Proposed).
+12. Cloud authentication abstraction.
+13. Job manifest/state store and publication semantics.
+14. Table format integration boundaries.
+15. License compatibility of external dependencies.
 
 ## 17. Product Definition of Done
 
