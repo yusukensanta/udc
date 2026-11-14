@@ -1,4 +1,4 @@
-# ADR-0003: Canonical Data Model
+# ADR-0003: Canonical Data Model and Schema Compatibility
 
 - **Status:** Proposed
 - **Date:** 2026-11-15
