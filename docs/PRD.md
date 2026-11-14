@@ -613,6 +613,26 @@ Scalability is a cross-cutting acceptance requirement, not a late roadmap phase.
 
 GitHub Stars are supplementary indicators, not the primary success metric.
 
+## Future Considerations (Non-MVP)
+
+The following items are potential future directions, not committed product requirements or architecture decisions. They must be evaluated against user demand, operational cost, and implementation complexity before being promoted into the roadmap.
+
+### Self-hosted Deployment
+
+UDC may eventually offer deployment modes beyond the standalone CLI/library so teams can run conversion workloads inside infrastructure they control, including AWS, GCP, and Azure environments.
+
+Potential deployment profiles to evaluate:
+
+- **Standalone / Embedded:** local CLI or library execution. This remains the MVP baseline.
+- **Self-hosted single-node service:** an API and/or lightweight UI for submitting and observing jobs, with execution performed on the same host or container. This could be deployed on a VM or as a container workload.
+- **Self-hosted distributed deployment:** separately scalable control-plane and worker processes, potentially on container orchestration platforms such as Kubernetes. This is a longer-term option, not an MVP commitment.
+
+If this direction is pursued, evaluate the separation of control-plane responsibilities (API, planning, scheduling, job-state coordination) from data-plane responsibilities (workers and format/storage adapters), while preserving the ability to run the same core processing logic in standalone mode.
+
+Operational topics to investigate include deployment packaging (for example, Docker and Kubernetes), persistent state and artifact storage, cloud-native workload identity, secret handling, network boundaries, observability, upgrades, graceful shutdown, and worker isolation.
+
+No specific cloud provider, compute service, orchestration platform, API, UI, or distributed topology is selected by this note. The existing single-node MVP and modular-monolith direction remain unchanged. Distributed execution and multi-worker state coordination remain deferred and are subject to the boundaries in ADR-0012, ADR-0013, and ADR-0018.
+
 ## 14. Out of Scope for MVP
 
 - Managed SaaS offering.
