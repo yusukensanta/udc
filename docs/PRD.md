@@ -7,7 +7,7 @@
 | Project | UDC |
 | Full Name | Universal Data Converter |
 | Document | Product Requirements Document |
-| Version | 0.3.0 |
+| Version | 0.3.1 |
 | Status | Draft |
 | License | Apache License 2.0 (proposed; subject to dependency/license review) |
 | Development Model | OSS-first |
@@ -544,8 +544,9 @@ The initial implementation is a modular Rust codebase, not a set of independentl
 | Orchestration | Planning, work-unit scheduling, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, storage consistency semantics, validation semantics, or the publication protocol |
 | Job State Store | Durable Job/Plan/Work Unit/Attempt/Publication records, legal transitions, atomic acceptance, recovery, and explicit resume | Dataset payload I/O, format decoding, or table transactions |
 | Generic Publisher | File/dataset staging layout, output manifest, and visibility commit protocol | Table-native transactions, or inventing atomic rename |
+| Packaging and distribution | Distribution channels, official targets and feature set, crate and binary naming, release pipeline, and the public-release gate | Cargo feature mechanics, or persisted-state versioning |
 
-This table summarizes the responsibility map in [ADR-0001](adr/ADR-0001-initial-architecture.md), which is authoritative together with its shared vocabulary and conflict-resolution rules. Focused contracts are in ADR-0003 through ADR-0018.
+This table summarizes the responsibility map in [ADR-0001](adr/ADR-0001-initial-architecture.md), which is authoritative together with its shared vocabulary and conflict-resolution rules. Focused contracts are in ADR-0003 through ADR-0019.
 
 ### 9.2 Canonical data model and schema compatibility
 
@@ -617,7 +618,8 @@ The following are candidates or directions, not uniformly finalized dependency s
 | CLI / configuration | clap / Serde; TOML and JSON candidates | Proposed; ADR-0009 |
 | Errors | Typed core errors; thiserror / anyhow candidates | Proposed; ADR-0008 |
 | Observability | tracing / OpenTelemetry candidates | Proposed; ADR-0010 |
-| Workspace / features | Cargo workspace with focused adapter crates | Proposed; ADR-0011 |
+| Workspace / features | Cargo workspace with focused adapter crates; smallest workable set of published crates | Proposed; ADR-0011 |
+| Packaging / distribution | Prebuilt binaries on GitHub Releases plus crates.io; `dist`, `release-plz`, and Trusted Publishing as automation candidates | Proposed; ADR-0019 |
 | Table-format integrations | Mature protocol libraries where suitable | Per-format capability and licensing review required; ADR-0015 |
 
 No dependency should be considered selected solely because it appears in this table. Concrete versions, feature flags, license compatibility, and supported capabilities must be verified before implementation and release.
@@ -628,11 +630,21 @@ No dependency should be considered selected solely because it appears in this ta
 
 The MVP is intended to be distributed and run as a local CLI and reusable Rust library. Its runtime does not require an API server, hosted control plane, database service, or Kubernetes.
 
+The proposed distribution is prebuilt binaries on GitHub Releases plus crates.io packages, starting at the first MVP release. The repository is private until that release and becomes public with it, so no public installation channel exists before then.
+
+- The package name `udc` belongs to unrelated projects on crates.io, PyPI, and npm. The proposed CLI package is `udc-cli`, installing a command named `udc`; fallback names are prepared in ADR-0019.
+- Every channel ships one official feature set, which matches the release support matrix.
+- Release artifacts are built only by CI and carry checksums and provenance attestations.
+
+Channels, official targets, naming, the release pipeline, and the conditions for making the repository public are specified in [ADR-0019](adr/ADR-0019-packaging-and-distribution.md).
+
 Container packaging may be useful for reproducible development and deployment, but a containerized service is not an MVP requirement.
 
 ### 11.2 Illustrative repository organization
 
 The following is a logical organization guide, not a requirement to create every crate or directory before its functionality is needed.
+
+The crate list is an upper bound, not a plan. Every crate that a published crate depends on must itself be published to crates.io, and a published name is permanent, so the first release publishes the smallest workable set and an adapter may begin as a Cargo feature of an existing crate. See [ADR-0011](adr/ADR-0011-dependency-and-feature-management.md).
 
 ```text
 udc/
@@ -764,6 +776,8 @@ Potential future evaluations include remote workers, alternative execution backe
 | Cloud credential expiry or leakage | Provider-native refresh, short-lived identities, opaque handles, and secret redaction |
 | Dependency or protocol maturity | POC, compatibility tests, licensing review, and explicit deferred capabilities |
 | Premature distributed architecture | Keep MVP single-node; introduce remote coordination only when independently scaling is justified |
+| Package name `udc` is taken on crates.io, PyPI, and npm, and other names cannot be reserved | Publish as `udc-cli` under the `udc-` prefix; warn in installation docs; keep the fallback naming plans of ADR-0019 ready; re-check names at the public-release gate |
+| Native dependencies break a build target | Explicit TLS and native-library choices validated per target before the target is declared supported |
 
 ## 17. Open Architecture Decisions
 
@@ -789,6 +803,7 @@ Architecture contracts and decisions are tracked in the ADRs. A Proposed or Unde
 | [ADR-0016](adr/ADR-0016-cloud-authentication.md) | Cloud identity and credential resolution | Proposed |
 | [ADR-0017](adr/ADR-0017-output-publication-protocol.md) | Generic Publisher and file/dataset output publication | Proposed |
 | [ADR-0018](adr/ADR-0018-distributed-job-state-store.md) | Future distributed Job State Store and coordination | Proposed; deferred until multi-worker execution is required |
+| [ADR-0019](adr/ADR-0019-packaging-and-distribution.md) | Packaging, release, distribution, and the public-release gate | Proposed |
 
 Other open questions include dependency license compatibility, exact release support matrices, and implementation-specific library/version choices. These should be resolved through implementation evidence and focused ADR updates rather than by treating this PRD as a substitute for detailed design.
 
@@ -806,6 +821,7 @@ A release is considered ready for its declared support level when:
 - Memory, concurrency, and performance benchmarks are reproducible.
 - Security review covers credential handling and secret redaction.
 - CLI documentation and executable examples are available.
+- Release artifacts are built by the release pipeline for every declared target, and installation is verified through each supported channel.
 - Breaking changes and persisted-plan/state compatibility are documented.
 - The release notes distinguish implemented capability from planned or experimental capability.
 
