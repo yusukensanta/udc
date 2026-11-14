@@ -262,7 +262,7 @@ Requirements:
 - Explicit policies for rounding, truncation, overflow, and other lossy behavior.
 - Preservation or explicit treatment of format-specific metadata and provenance.
 
-The canonical model and compatibility decision rules are defined in [ADR-0003](adr/ADR-0003-canonical-data-model.md).
+The compatibility evaluator must produce a deterministic, versioned `SchemaMappingPlan` containing source/target logical schemas, field mapping, coercion operations, policy decisions, warnings, and a digest. The canonical model and compatibility decision rules are defined in [ADR-0003](adr/ADR-0003-canonical-data-model.md).
 
 ### FR-05: Data validation
 
