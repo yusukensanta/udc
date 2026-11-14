@@ -159,7 +159,7 @@ UDC's scope includes general-purpose row/columnar serialization formats, Arrow-b
 
 **Important distinction:** Lance is not only a file format. The broader Lance specification also defines table, index, catalog, and namespace layers. UDC must model Lance File Format and Lance Table Format as separate capabilities. Vortex is included as a columnar data format; its evolving reader/writer and ecosystem support must be validated independently.
 
-Actual support is determined by implemented adapter capabilities, not by inclusion in this roadmap.
+Actual support is determined by implemented adapter capabilities, not by inclusion in this roadmap. File adapter contracts and safe split capabilities are specified in [ADR-0014](adr/ADR-0014-file-format-adapter-contract.md).
 
 ### 5.2 Table Formats
 
@@ -172,7 +172,7 @@ Actual support is determined by implemented adapter capabilities, not by inclusi
 | Lance Table Format | Inspection and metadata reading | P2 | Separate from Lance file reader/writer |
 | Lance Table Format | Migration / rewrite | P3 | Must account for fragments, deletions, indices, manifests, and commits |
 
-Table format migration must preserve logical table semantics.
+Table format migration must preserve logical table semantics. The TableFormatAdapter boundary, snapshot requirements, and native commit ownership are specified in [ADR-0015](adr/ADR-0015-table-format-integration-boundary.md).
 
 UDC must explicitly identify unsupported features rather than silently ignoring them. File-format conversion must not be represented as table-format migration when snapshots, deletes, indexes, manifests, or transaction semantics are involved.
 
@@ -202,7 +202,7 @@ Lance requires special treatment: the Lance ecosystem specifies file, table, ind
 
 Authentication must support native workload identity and default credential chains.
 
-Long-lived credentials must not be required.
+Long-lived credentials must not be required. Provider identity resolution and refresh policy are specified in [ADR-0016](adr/ADR-0016-cloud-authentication.md).
 
 ## 6. Functional Requirements
 
@@ -303,7 +303,7 @@ Requirements:
 - Cleanup of temporary artifacts.
 - Protection against accidental source overwrite.
 
-Publication semantics must account for differences between object stores and table format commit protocols.
+Publication semantics must account for differences between object stores and table format commit protocols. Generic file/dataset visibility is specified in [ADR-0017](adr/ADR-0017-output-publication-protocol.md); table commits are governed by ADR-0015.
 
 ### FR-08: CLI
 
@@ -433,6 +433,7 @@ Initial demonstration: **Amazon S3 → Google Cloud Storage**
 | Spark Integration | Deferred |
 | ORC / Avro / Arrow IPC | Deferred |
 | Full Iceberg / Delta / Hudi / Lance Table Migration | Deferred |
+| Distributed State Store / Multi-worker coordination | Deferred |
 
 Azure support is a target capability, but its exact inclusion in the first release depends on integration test coverage.
 
@@ -478,7 +479,7 @@ UDC will distinguish between:
 
 Apache Arrow will be the primary in-memory representation.
 
-A separate canonical logical schema model will describe type semantics and conversion compatibility.
+A separate canonical logical schema model will describe type semantics and conversion compatibility. Schema compatibility outcomes, mapping policy, and lossy-conversion rules are defined in [ADR-0003](adr/ADR-0003-canonical-data-model.md).
 
 ### 9.3 Execution Engine Abstraction
 
@@ -650,10 +651,13 @@ The following decisions are tracked in Architecture Decision Records. Items mark
 9. Tracing, metrics, and OpenTelemetry integration — ADR-0010 (Proposed).
 10. Workspace, dependency, and Cargo feature strategy — ADR-0011 (Proposed).
 11. Scalable processing model and future scale-out boundary — ADR-0012 (Proposed).
-12. Cloud authentication abstraction.
-13. Local JobStateStore backend selection (SQLite vs append-only journal) and manifest implementation details — ADR-0013.
-14. Table format integration boundaries.
-15. License compatibility of external dependencies.
+12. Durable JobStateStore and local backend selection — ADR-0013 (Proposed).
+13. File Format Adapter Contract — ADR-0014 (Proposed).
+14. Table Format Integration Boundary — ADR-0015 (Proposed).
+15. Cloud Authentication — ADR-0016 (Proposed).
+16. Generic Output Publication Protocol — ADR-0017 (Proposed).
+17. Distributed Job State Store — ADR-0018 (Proposed; deferred until multi-worker execution).
+18. License compatibility of external dependencies.
 
 ## 17. Product Definition of Done
 
