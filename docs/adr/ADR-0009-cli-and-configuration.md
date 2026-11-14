@@ -54,7 +54,7 @@ Reproducibility does not come from ranking the file above the environment. It co
 - `udc job status`
 - `udc job resume` — explicitly resume a failed or cancelled job; the contract is defined by ADR-0013 §9.
 
-Exact flags are settled with the first implementation.
+The CLI also reports the build's version, target, source commit, and compiled-in adapters, as ADR-0019 requires. Exact flags are settled with the first implementation.
 
 ## 7. Configuration rules
 
@@ -104,3 +104,4 @@ Revisit after the first stable CLI release or if SDK-first use cases become domi
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
 - [ADR-0016: Cloud Authentication and Credential Resolution](ADR-0016-cloud-authentication.md)
+- [ADR-0019: Packaging, Release, and Distribution](ADR-0019-packaging-and-distribution.md)
