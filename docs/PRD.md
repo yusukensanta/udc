@@ -7,7 +7,7 @@
 | Project | UDC |
 | Full Name | Universal Data Converter |
 | Document | Product Requirements Document |
-| Version | 0.2.0 |
+| Version | 0.3.0 |
 | Status | Draft |
 | License | Apache License 2.0 (proposed; subject to dependency/license review) |
 | Development Model | OSS-first |
@@ -146,22 +146,30 @@ UDC distinguishes the following layers. Support at one layer does not imply supp
 | Catalog / namespace | Glue, REST Catalog, Lance Namespace | Table discovery, registration, and catalog-specific coordination |
 | Storage | Local filesystem, S3, GCS, Azure Blob | Object/byte operations and provider capabilities |
 | Execution | Native streaming pipeline, DataFusion, DuckDB, Spark | Batch processing and optional transformations |
-| Orchestration | Planner, Scheduler, Worker, Publisher | Job planning, work-unit lifecycle, retries, resource budgets, and publication workflow |
+| Orchestration | Planner, Scheduler, Worker | Job planning, work-unit lifecycle, retries, resource budgets, and invocation of validation and publication |
+| Publication | Generic Publisher, table-native commit | Making a validated output set visible through a destination-specific reference or a native table commit |
+
+**Priority and phase labels.** Two different labels are used and they must not be confused:
+
+- **Capability priority (P0–P3)** ranks integration targets *within one layer's table* below. P0 is the first group of targets in that layer, P1 the next, P2 requires an evaluation before any commitment, and P3 depends on earlier capabilities in the same layer. A priority label says nothing about MVP membership or timing.
+- **Roadmap phase (Phase 0–7)** states sequencing and is defined in §12. The Phase column below links each capability to it.
+
+MVP membership is defined only by §8.2.
 
 ### 5.1 File and columnar formats
 
 The format list below is a capability roadmap, not a claim that these formats are currently implemented or production-ready.
 
-| Format | Intended read/write scope | Priority | Notes |
-|---|---|---|---|
-| Apache Parquet | Read and write | P0 | Primary analytical columnar format |
-| CSV | Read and write | P0 | Interchange format; parsing and type inference policies must be explicit |
-| JSON / JSONL | Read and write | P0 | Semi-structured interchange; schema inference and heterogeneous records require explicit policy |
-| Apache Avro | Read and write | P1 | Row-oriented serialization and schema evolution |
-| Apache ORC | Read and write | P1 | Columnar analytical format |
-| Apache Arrow IPC / Feather | Read and write | P1 | Arrow-native interchange and file representation |
-| Lance File | Evaluate read/write | P2 | Distinct from Lance Table; library and feature coverage must be verified |
-| Vortex | Evaluate read/write | P2 | Evolving columnar ecosystem; maturity and feature coverage require validation |
+| Format | Intended read/write scope | Priority | Phase | Notes |
+|---|---|---|---|---|
+| Apache Parquet | Read and write | P0 | Phase 0 | Primary analytical columnar format |
+| CSV | Read and write | P0 | Phase 1 | Interchange format; parsing and type inference policies must be explicit |
+| JSON / JSONL | Read and write | P0 | Phase 1 | Semi-structured interchange; schema inference and heterogeneous records require explicit policy |
+| Apache Avro | Read and write | P1 | Phase 6 | Row-oriented serialization and schema evolution |
+| Apache ORC | Read and write | P1 | Phase 6 | Columnar analytical format |
+| Apache Arrow IPC / Feather | Read and write | P1 | Phase 6 | Arrow-native interchange and file representation |
+| Lance File | Evaluate read/write | P2 | Not scheduled | Distinct from Lance Table; library and feature coverage must be verified |
+| Vortex | Evaluate read/write | P2 | Not scheduled | Evolving columnar ecosystem; maturity and feature coverage require validation |
 
 UDC support is defined by the capabilities implemented and tested in its adapter—not by the format's inclusion in this table. Each adapter must report its actual inspection, split, read, write, and option capabilities. See [ADR-0014: File Format Adapter Contract](adr/ADR-0014-file-format-adapter-contract.md).
 
@@ -169,25 +177,25 @@ UDC support is defined by the capabilities implemented and tested in its adapter
 
 ### 5.2 Table formats
 
-| Format | Intended capability | Priority | Boundary |
-|---|---|---|---|
-| Apache Iceberg | Metadata and snapshot inspection | P0 | Initial table-format integration target; read-only inspection does not imply rewrite |
-| Apache Iceberg | Data-file rewrite / migration | P1 | Requires snapshot pinning, delete handling, conflict detection, and native commit |
-| Delta Lake | Integration evaluation | P2 | Protocol feature compatibility and available Rust/JVM integration must be assessed |
-| Apache Hudi | Integration evaluation | P2 | Timeline and table-type semantics must be assessed |
-| Lance Table | Metadata inspection | P2 | Separate from Lance File |
-| Lance Table | Migration / rewrite | P3 | Must account for fragments, deletions, indices, manifests, and native commit behavior |
+| Format | Intended capability | Priority | Phase | Boundary |
+|---|---|---|---|---|
+| Apache Iceberg | Metadata and snapshot inspection | P0 | Phase 5 | Initial table-format integration target; read-only inspection does not imply rewrite |
+| Apache Iceberg | Data-file rewrite / migration | P1 | Phase 7 | Requires snapshot pinning, delete handling, conflict detection, and native commit |
+| Delta Lake | Integration evaluation | P2 | Not scheduled | Protocol feature compatibility and available Rust/JVM integration must be assessed |
+| Apache Hudi | Integration evaluation | P2 | Not scheduled | Timeline and table-type semantics must be assessed |
+| Lance Table | Metadata inspection | P2 | Not scheduled | Separate from Lance File |
+| Lance Table | Migration / rewrite | P3 | Not scheduled | Must account for fragments, deletions, indices, manifests, and native commit behavior |
 
 A table-format feature is supported only when its adapter can preserve the relevant table semantics. Unsupported protocol features must be surfaced explicitly; they must not be silently ignored. The authoritative integration boundary and snapshot/commit responsibilities are specified in [ADR-0015](adr/ADR-0015-table-format-integration-boundary.md).
 
 ### 5.3 Storage providers
 
-| Provider | Service | Intended priority |
-|---|---|---|
-| Local | Local filesystem | P0 for development and local execution |
-| AWS | Amazon S3 | P0 |
-| GCP | Google Cloud Storage | P0 |
-| Azure | Azure Blob Storage | P0 target; release inclusion depends on tested capability coverage |
+| Provider | Service | Priority | Phase | Notes |
+|---|---|---|---|---|
+| Local | Local filesystem | P0 | Phase 0 | Development and local execution |
+| AWS | Amazon S3 | P0 | Phase 3 | |
+| GCP | Google Cloud Storage | P0 | Phase 3 | |
+| Azure | Azure Blob Storage | P0 | Phase 4 | Target capability; release inclusion depends on tested capability coverage |
 
 Storage adapters expose object operations and provider-specific capabilities. They must not assume filesystem rename semantics or universal atomic directory publication. The storage abstraction is described in [ADR-0005](adr/ADR-0005-storage-abstraction.md).
 
@@ -268,17 +276,19 @@ The compatibility evaluator must produce a deterministic, versioned `SchemaMappi
 
 UDC must distinguish structural validation, transfer integrity, and logical data equivalence. Each result must state its scope and guarantee.
 
-Candidate validation levels:
+Validation levels:
 
-| Level | Validation | What it can establish |
+| Level | Name | What a pass can establish |
 |---|---|---|
-| L1 | Schema / structural compatibility | Declared schema and structural properties satisfy the selected policy |
-| L2 | Row or record count | Counts agree; does not prove values agree |
-| L3 | Column statistics | Selected aggregates/statistics agree under defined normalization |
-| L4 | Checksums / hashes | Byte-level or normalized-value fingerprints agree according to the selected algorithm |
-| L5 | Exact logical comparison | Logical records agree under an explicitly defined equality and normalization policy |
+| L1 | Structural | Declared schema and structural properties satisfy the selected policy |
+| L2 | Cardinality | Row or record counts agree; does not prove values agree |
+| L3 | Statistics | Selected aggregates/statistics agree under defined normalization |
+| L4 | Logical fingerprint | Canonicalized hashes of logical values agree under a versioned encoding; evidence, not proof |
+| L5 | Exact comparison | Logical records agree under an explicitly defined equality and normalization policy |
 
-The exact algorithms, normalization rules, and guarantee names are governed by [ADR-0006: Validation Semantics](adr/ADR-0006-validation-semantics.md). A physical file checksum must not be presented as proof of logical equivalence.
+Transfer integrity is a separate check, not a validation level. A physical checksum or ETag comparison establishes that stored or copied bytes are intact. It must not be reported as L4 or presented as proof of logical equivalence.
+
+The level names, algorithms, normalization rules, and the guarantee each result may claim are governed by [ADR-0006: Validation Semantics](adr/ADR-0006-validation-semantics.md).
 
 ### FR-06: Job lifecycle and recovery
 
@@ -292,9 +302,10 @@ Requirements:
 - Classified retry with bounded attempts, backoff, and retry budgets.
 - Durable completion acknowledgement for a work unit only after its required output and validation conditions are met.
 - Recovery after process restart from durably completed work units.
+- Explicit resume of a failed or cancelled job over its sealed plan, reusing durably completed work units while the plan, source identity, and accepted outputs remain valid.
 - No exactly-once execution claim; safe effects are achieved through attempt isolation, acceptance, validation, and publication.
 
-The MVP requires a durable local Job State Store and restart recovery. The persisted state model, legal transitions, and recovery contract are defined in [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md). Planning, scheduling, worker contracts, and resource budgets are defined in [ADR-0012](adr/ADR-0012-scalable-data-processing.md).
+The MVP requires a durable local Job State Store, restart recovery, and explicit resume. The persisted state model, legal transitions, and the recovery and resume contracts are defined in [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md). Planning, scheduling, worker contracts, resource budgets, and job failure policy are defined in [ADR-0012](adr/ADR-0012-scalable-data-processing.md).
 
 ### FR-07: Safe output publication
 
@@ -323,8 +334,9 @@ Initial command concepts:
 - `udc convert`
 - `udc validate`
 - `udc job status`
+- `udc job resume`
 
-Exact flags, configuration precedence, file format, and compatibility policy remain subject to [ADR-0009](adr/ADR-0009-cli-and-configuration.md).
+Configuration is resolved from CLI flags, then environment variables, then the configuration file, then defaults. Exact flags, file format, and compatibility policy remain subject to [ADR-0009](adr/ADR-0009-cli-and-configuration.md).
 
 ### FR-09: Observability
 
@@ -352,7 +364,7 @@ Telemetry must not leak credentials or sensitive data. High-cardinality values s
 
 ### NFR-02: Reliability and failure isolation
 
-- Errors must be classified as transient, permanent, configuration, compatibility, resource, or other actionable categories.
+- Every error must be classified into one of the categories defined by ADR-0008 (configuration, compatibility, data, authentication/authorization, transient, resource, conflict, cancelled, internal), each with a default retry disposition.
 - Only eligible transient failures should be retried automatically.
 - Retries must be bounded by attempt and time budgets and use backoff with jitter where appropriate.
 - A failed attempt must not overwrite or be mistaken for an accepted attempt.
@@ -407,10 +419,11 @@ The processing architecture and resource-budget ownership are specified in ADR-0
 - Job, plan, work-unit, attempt, and publication transitions must be durable and validated against legal state transitions.
 - The MVP must recover after process restart from completed work units.
 - A work unit is acknowledged only after its required output is durable and acceptance conditions are satisfied.
+- A failed or cancelled job must be resumable over its sealed plan without rewriting completed work units, while the plan, source identity, and accepted outputs remain valid.
 - Mid-work-unit checkpointing is not required for the MVP.
 - State-store implementation details must not be confused with bulk dataset storage or artifact storage.
 
-The local durability contract belongs to ADR-0013. A distributed backend must implement the same logical state contract and is deferred to ADR-0018.
+The local durability and resume contract belongs to ADR-0013. A distributed backend must implement the same logical state contract and is deferred to ADR-0018.
 
 ### NFR-08: Operational efficiency
 
@@ -435,7 +448,7 @@ The MVP should demonstrate:
 - Applying configurable compression and writer options.
 - Preserving supported partition structure.
 - Applying basic, explicit schema mapping.
-- Validating schema and row counts.
+- Validating schema (L1) and row counts (L2).
 - Staging and publishing validated output through a supported destination publication mode.
 - Recovering completed work units after process restart.
 
@@ -452,22 +465,25 @@ The MVP should demonstrate:
 | Azure Blob Storage | Target capability; release gate depends on tested support |
 | Source inspection | Required for supported formats |
 | Basic schema compatibility and mapping | Required |
-| Schema validation | Required |
-| Row-count validation | Required |
-| Checksum / transfer-integrity validation | Basic, with guarantee clearly labeled |
+| Schema validation (L1) | Required |
+| Row-count validation (L2) | Required |
+| Statistics, logical fingerprint, and exact comparison (L3–L5) | Not an MVP commitment |
+| Transfer-integrity check (physical checksum; not a validation level) | Basic, with guarantee clearly labeled |
 | Streaming and bounded memory | Required |
 | Bounded concurrency and backpressure | Required |
 | CLI | Required |
 | Durable local Job State Store | Required |
 | Durable work-unit completion and process-restart resume | Required |
+| Explicit resume of a failed or cancelled job over its sealed plan | Required |
 | Generic safe publication | Required only for destination modes whose semantics are verified and documented |
-| Read-only Iceberg metadata inspection | P0 target; not a prerequisite for the core file-conversion MVP unless explicitly selected as a release milestone |
+| Read-only Iceberg metadata inspection | First table-format target (Phase 5); not a prerequisite for the core file-conversion MVP unless explicitly selected as a release milestone |
 | DataFusion / DuckDB as mandatory runtime | Not selected; evaluate via ADR-0004 POC |
 | Spark integration | Deferred |
 | Avro / ORC / Arrow IPC | Deferred from initial MVP |
 | Lance File / Vortex | Deferred pending ecosystem and adapter evaluation |
 | Full Iceberg / Delta / Hudi / Lance Table migration | Deferred |
 | Mid-work-unit resume | Deferred |
+| Reuse of completed work across different plans or jobs | Deferred |
 | Distributed State Store / multi-worker coordination | Deferred |
 | Remote Worker / built-in distributed Coordinator | Deferred |
 | Self-hosted API Server / Web UI | Future consideration, not MVP |
@@ -478,9 +494,11 @@ The table describes product commitments and deferrals, not the current implement
 
 The MVP must durably record completed work units and safely resume remaining work after process restart. It does not require restoring partial progress inside a work unit.
 
+A job that ends FAILED or CANCELLED keeps its completed work units. An explicit resume re-runs only the remaining units over the same sealed plan; a change that alters the plan requires a new job.
+
 Execution is at-least-once. A retry may repeat computation; correctness depends on attempt-isolated staging, conditional acceptance, validation, and controlled publication. UDC does not claim exactly-once execution.
 
-Generic file/dataset output publication must use a destination mode whose guarantees have been tested. Prefix existence or successful object upload alone is not proof that a complete dataset has been published. Table-format publication is outside the generic file publisher and must use the table's native commit protocol.
+Generic file/dataset output publication must use a destination mode whose guarantees have been tested. Prefix existence or successful object upload alone is not proof that a complete dataset has been published. Table-format publication is outside the Generic Publisher and must use the table's native commit protocol.
 
 See [ADR-0012](adr/ADR-0012-scalable-data-processing.md), [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md), and [ADR-0017](adr/ADR-0017-output-publication-protocol.md).
 
@@ -491,10 +509,10 @@ See [ADR-0012](adr/ADR-0012-scalable-data-processing.md), [ADR-0013](adr/ADR-001
 3. Read and write through the cloud storage providers included in the release support matrix.
 4. Preserve supported partition structures or report unsupported layouts.
 5. Detect incompatible schema mappings before data movement begins.
-6. Validate schema and row counts, with result semantics clearly reported.
+6. Validate schema (L1) and row counts (L2), with result semantics clearly reported.
 7. Report actionable errors with retry classification.
 8. Keep incomplete or unvalidated output out of the supported published view.
-9. Resume remaining work after process restart using durable work-unit state.
+9. Resume remaining work after process restart, and after an explicit resume of a failed or cancelled job, using durable work-unit state and without rewriting completed work units.
 10. Demonstrate bounded memory on a dataset substantially larger than the configured memory budget.
 11. Demonstrate bounded queues and backpressure when the destination is slower than the source.
 12. Demonstrate retry isolation after a work-unit failure without accepting stale or partial output.
@@ -511,20 +529,23 @@ The initial implementation is a modular Rust codebase, not a set of independentl
 
 | Concern | Owns | Does not own |
 |---|---|---|
-| Canonical logical schema | Logical type semantics and compatibility policy | Physical decoding or batch execution |
-| File-format adapter | Physical inspection, decoding/encoding, safe split and streaming capabilities | Global scheduling, retry state, or publication |
-| Table-format adapter | Table snapshot, metadata, deletes, indexes, and native commit semantics | Generic file conversion |
-| Catalog adapter | Discovery, registration, and catalog protocol | Job lifecycle |
-| Storage adapter | Object/byte operations and provider capabilities | Credential policy, durable job state, or dataset-level visibility |
-| Credential resolution | Provider identity selection and refresh integration | Object I/O |
-| Execution backend | Batch processing and optional transformations | Job/attempt lifecycle or final publication |
+| Canonical logical schema | Logical type semantics, compatibility outcomes, and the schema mapping plan | Physical decoding or batch execution |
+| File-format adapter | Physical inspection, decode/encode, format metadata, and safe split and streaming capabilities | Global scheduling, job state, retry policy, or publication |
+| Table-format adapter | Table snapshot, metadata, deletes, indexes, and native commit semantics | Generic file conversion or generic file publication |
+| Catalog adapter | Table discovery, registration, and catalog protocol | Job lifecycle |
+| Storage adapter | Object bytes, range reads, listing, multipart primitives, and provider capabilities | Credential policy, durable job state, or dataset-level visibility |
+| Credential resolution | Provider identity selection and refresh integration | Object I/O or CLI syntax |
+| Execution backend | Batch processing and optional transformations | Job/Attempt lifecycle or final publication |
 | Validation | Meaning and evidence of correctness checks | Scheduling or durable state |
-| Runtime | Async runtime and bounded runtime primitives | Global scheduler policy and job state |
-| Orchestration | Planning, work-unit scheduling, worker contract, resource budgets, and publication workflow | Storage consistency semantics or table transaction implementation |
-| Job State Store | Durable records, legal transitions, atomic acceptance, and recovery | Dataset payload I/O |
-| Generic Publisher | File/dataset staging, manifest, and visibility protocol | Table-native transaction semantics |
+| Runtime | Async runtime and bounded runtime primitives | Scheduling policy, resource-budget policy, or durable state |
+| Error handling | Error taxonomy, retry eligibility, and backoff rules | Persisting attempts or accepting output |
+| CLI and configuration | User-facing commands, configuration format, and configuration precedence | Internal job-state representation or credential resolution |
+| Observability | Instrumentation, cardinality and redaction rules, and export | The job state machine |
+| Orchestration | Planning, work-unit scheduling, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, storage consistency semantics, validation semantics, or the publication protocol |
+| Job State Store | Durable Job/Plan/Work Unit/Attempt/Publication records, legal transitions, atomic acceptance, recovery, and explicit resume | Dataset payload I/O, format decoding, or table transactions |
+| Generic Publisher | File/dataset staging layout, output manifest, and visibility commit protocol | Table-native transactions, or inventing atomic rename |
 
-The authoritative ownership map and conflict-resolution rules are in [ADR-0001](adr/ADR-0001-initial-architecture.md). Focused contracts are in ADR-0012 through ADR-0018.
+This table summarizes the responsibility map in [ADR-0001](adr/ADR-0001-initial-architecture.md), which is authoritative together with its shared vocabulary and conflict-resolution rules. Focused contracts are in ADR-0003 through ADR-0018.
 
 ### 9.2 Canonical data model and schema compatibility
 
@@ -563,16 +584,16 @@ Storage operations, cloud identity resolution, generic output publication, and t
 
 - ADR-0005: object operations and provider capabilities.
 - ADR-0016: identity source, credential resolution, and refresh.
-- ADR-0017: generic file/dataset staging, manifest, and visibility protocol.
+- ADR-0017: the Generic Publisher and its staging, output manifest, and visibility protocol.
 - ADR-0015: table-format snapshot and native commit protocol.
 
 UDC must not assume object stores provide atomic directory rename or a universal conditional-update primitive. Safe publication guarantees are destination-specific and must be capability-checked and tested.
 
 ### 9.6 Job processing, state, and recovery
 
-ADR-0012 owns planning, work-unit granularity, scheduling policy, resource budgets, worker contracts, and publication workflow.
+ADR-0012 owns planning, work-unit granularity, scheduling policy, resource budgets, worker contracts, job failure policy, and the point at which validation and publication are invoked. It does not define the publication protocol, which belongs to ADR-0017.
 
-ADR-0013 owns the persisted Job/Plan/Work Unit/Attempt/Publication records, legal state transitions, atomicity, durability, and single-node recovery.
+ADR-0013 owns the persisted Job/Plan/Work Unit/Attempt/Publication records, legal state transitions, atomicity, durability, single-node recovery, and explicit resume of a failed or cancelled job.
 
 ADR-0018 defines only a future distributed backend and coordination protocol for the ADR-0013 state contract. It does not redefine the state model and is not required for the MVP.
 
@@ -651,20 +672,20 @@ Crates and integration directories should be introduced when they establish a us
 
 ## 12. Roadmap
 
-The roadmap is capability-driven, not strictly time-driven. Priority labels identify sequencing intent and do not override MVP acceptance criteria or actual implementation status.
+The roadmap is capability-driven, not strictly time-driven. Phases identify sequencing intent and do not override MVP acceptance criteria or actual implementation status. Phase numbers are distinct from the capability priority labels (P0–P3) defined in §5.
 
 | Phase | Deliverable |
 |---|---|
-| P0 | Core contracts, local Parquet inspection/conversion, and reproducible baseline |
-| P1 | CSV / JSON adapters and basic schema mapping |
-| P2 | Validation semantics and durable local job/work-unit recovery |
-| P3 | S3 / GCS integration and verified generic output publication |
-| P4 | Azure integration, reliability hardening, and performance benchmarks |
-| P5 | Iceberg metadata inspection |
-| P6 | Avro / ORC / Arrow IPC and additional format coverage |
-| P7 | Table-format rewrites, distributed execution, SDKs, and external integrations as independently validated capabilities |
+| Phase 0 | Core contracts, local Parquet inspection/conversion, and reproducible baseline |
+| Phase 1 | CSV / JSON adapters and basic schema mapping |
+| Phase 2 | Validation semantics, durable local job/work-unit recovery, and explicit resume |
+| Phase 3 | S3 / GCS integration and verified generic output publication |
+| Phase 4 | Azure integration, reliability hardening, and performance benchmarks |
+| Phase 5 | Iceberg metadata inspection |
+| Phase 6 | Avro / ORC / Arrow IPC and additional format coverage |
+| Phase 7 | Table-format rewrites, distributed execution, SDKs, and external integrations as independently validated capabilities |
 
-This is a proposed sequence and may change as implementation evidence is gathered. The MVP remains single-node; bounded resource use and recovery are MVP requirements, not late-stage scale-out features. See [ADR-0012](adr/ADR-0012-scalable-data-processing.md) and [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md).
+The MVP defined in §8 corresponds to Phases 0–4; Azure's inclusion in the MVP release remains gated on tested support (§8.2). This is a proposed sequence and may change as implementation evidence is gathered. The MVP remains single-node; bounded resource use and recovery are MVP requirements, not late-stage scale-out features. See [ADR-0012](adr/ADR-0012-scalable-data-processing.md) and [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md).
 
 ## 13. Success Metrics
 
@@ -737,7 +758,7 @@ Potential future evaluations include remote workers, alternative execution backe
 | Cloud API differences | Provider-specific capability reporting and integration tests |
 | Object-store publication assumptions | Destination-specific commit protocol; never assume atomic directory rename |
 | Memory exhaustion or resource starvation | Byte-aware memory admission, bounded queues, backpressure, and separate I/O/CPU limits |
-| Partial migration failure | Attempt-isolated staging, durable acceptance, validation, and publication reconciliation |
+| Partial migration failure | Attempt-isolated staging, durable acceptance, validation, publication reconciliation, and explicit resume over the sealed plan |
 | Process crash or duplicate work | Durable work-unit state; at-least-once execution with idempotent effects |
 | Table-format corruption | Snapshot pinning and native table commit through mature protocol implementations |
 | Cloud credential expiry or leakage | Provider-native refresh, short-lived identities, opaque handles, and secret redaction |
@@ -746,7 +767,7 @@ Potential future evaluations include remote workers, alternative execution backe
 
 ## 17. Open Architecture Decisions
 
-Architecture contracts and decisions are tracked in the ADRs. A Proposed or Under Evaluation status means the decision is not finalized and must not be treated as a fixed implementation dependency.
+Architecture contracts and decisions are tracked in the ADRs. A Proposed or Under Evaluation status means the decision is not finalized and must not be treated as a fixed implementation dependency. ADRs carry no priority labels; an ADR must be accepted before the roadmap phase that first depends on it.
 
 | ADR | Topic | Status |
 |---|---|---|
@@ -755,18 +776,18 @@ Architecture contracts and decisions are tracked in the ADRs. A Proposed or Unde
 | [ADR-0003](adr/ADR-0003-canonical-data-model.md) | Canonical logical schema and schema compatibility | Proposed |
 | [ADR-0004](adr/ADR-0004-execution-engine-selection.md) | Execution backend selection and POC | Proposed — Under Evaluation |
 | [ADR-0005](adr/ADR-0005-storage-abstraction.md) | Storage abstraction and provider capabilities | Proposed |
-| [ADR-0006](adr/ADR-0006-validation-semantics.md) | Validation semantics and logical equality | Proposed |
+| [ADR-0006](adr/ADR-0006-validation-semantics.md) | Validation levels (L1–L5), transfer integrity, and logical equality | Proposed |
 | [ADR-0007](adr/ADR-0007-async-runtime-and-concurrency.md) | Async runtime and concurrency primitives | Proposed |
-| [ADR-0008](adr/ADR-0008-error-handling-and-retry.md) | Error taxonomy and retry policy | Proposed |
-| [ADR-0009](adr/ADR-0009-cli-and-configuration.md) | CLI and job configuration | Proposed |
+| [ADR-0008](adr/ADR-0008-error-handling-and-retry.md) | Error categories and retry policy | Proposed |
+| [ADR-0009](adr/ADR-0009-cli-and-configuration.md) | CLI, job configuration, and configuration precedence | Proposed |
 | [ADR-0010](adr/ADR-0010-observability.md) | Observability and telemetry | Proposed |
 | [ADR-0011](adr/ADR-0011-dependency-and-feature-management.md) | Workspace, dependencies, and features | Proposed |
-| [ADR-0012](adr/ADR-0012-scalable-data-processing.md) | Planning, work units, scheduling, workers, and resource budgets | Proposed |
-| [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md) | Durable job state and single-node recovery | Proposed |
+| [ADR-0012](adr/ADR-0012-scalable-data-processing.md) | Planning, work units, scheduling, workers, resource budgets, and job failure policy | Proposed |
+| [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md) | Durable job state, single-node recovery, and explicit resume | Proposed |
 | [ADR-0014](adr/ADR-0014-file-format-adapter-contract.md) | File-format adapter contract and safe split capabilities | Proposed |
 | [ADR-0015](adr/ADR-0015-table-format-integration-boundary.md) | Table-format integration and native commits | Proposed |
 | [ADR-0016](adr/ADR-0016-cloud-authentication.md) | Cloud identity and credential resolution | Proposed |
-| [ADR-0017](adr/ADR-0017-output-publication-protocol.md) | Generic file/dataset output publication | Proposed |
+| [ADR-0017](adr/ADR-0017-output-publication-protocol.md) | Generic Publisher and file/dataset output publication | Proposed |
 | [ADR-0018](adr/ADR-0018-distributed-job-state-store.md) | Future distributed Job State Store and coordination | Proposed; deferred until multi-worker execution is required |
 
 Other open questions include dependency license compatibility, exact release support matrices, and implementation-specific library/version choices. These should be resolved through implementation evidence and focused ADR updates rather than by treating this PRD as a substitute for detailed design.
@@ -780,7 +801,7 @@ A release is considered ready for its declared support level when:
 - Required cloud integration tests pass for the declared provider capabilities.
 - Schema mapping and validation guarantees are tested, including adversarial cases.
 - Failure and retry scenarios are tested.
-- Work-unit completion is durably recorded and process-restart recovery is tested for releases claiming resumability.
+- Work-unit completion is durably recorded, and process-restart recovery and explicit resume are tested, for releases claiming resumability.
 - Publication failure and ambiguous-acknowledgement scenarios are tested for each supported publication mode.
 - Memory, concurrency, and performance benchmarks are reproducible.
 - Security review covers credential handling and secret redaction.
