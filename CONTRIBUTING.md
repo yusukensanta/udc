@@ -12,7 +12,7 @@ UDC is in the product-definition and architecture stage. The implementation and 
 
 1. Read [the PRD](docs/PRD.md).
 2. Check existing issues and discussions before starting significant work.
-3. For architectural changes, propose an Architecture Decision Record (ADR).
+3. For architectural changes, propose an Architecture Decision Record (ADR) that follows the [ADR conventions](#adr-conventions).
 4. For new format or storage integrations, describe the capability and compatibility boundaries.
 
 ## Design principles
@@ -23,6 +23,18 @@ UDC is in the product-definition and architecture stage. The implementation and 
 - Never silently perform lossy schema conversions.
 - Treat validation and safe publication as first-class features.
 - Do not log credentials or sensitive configuration.
+
+## ADR conventions
+
+ADRs live in [docs/adr](docs/adr/). They stay consistent only if each concern has exactly one owner.
+
+- **One concern, one ADR.** [ADR-0001](docs/adr/ADR-0001-initial-architecture.md) holds the responsibility map, the ADR scope map, and the shared vocabulary. A new ADR, or a change to an ADR's scope, must update ADR-0001 in the same pull request.
+- **Reference, do not restate.** An ADR that depends on another concern points to the owning ADR instead of redefining its contract. If two ADRs disagree, the owner in the scope map wins and the other is amended.
+- **Header.** Every ADR starts with Status, Date, Decision owners, and Scope. ADRs carry no priority labels; capability priority (P0–P3) and roadmap phases (Phase 0–7) are defined only in the [PRD](docs/PRD.md).
+- **Sections.** Sections are numbered and follow this order: Context, Decision drivers, Options considered, Decision (or Proposed decision), Rationale, topic-specific sections, Trade-offs and consequences, Validation plan, Ownership boundary, Revisit conditions, Related ADRs. An ADR may omit a section that does not apply, except Ownership boundary.
+- **Ownership boundary.** State what the ADR owns and, for each neighbouring concern it does not own, the ADR that does.
+- **Shared terms.** Use the vocabulary in ADR-0001, the validation level names (L1–L5) from ADR-0006, and the error categories from ADR-0008. Define a new term instead of giving an existing one a second meaning.
+- **Status.** The status in the ADR header is authoritative. Update the status table in the PRD and any mention in the README in the same pull request.
 
 ## Proposed contribution workflow
 
