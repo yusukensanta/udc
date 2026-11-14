@@ -35,7 +35,7 @@ The state model must work for the single-node MVP without forcing a database ser
 
 ## 4. Proposed decision
 
-Define a storage-agnostic **JobStateStore** domain interface and versioned manifest schema. The MVP should implement a local durable backend. SQLite is the leading implementation candidate, but the storage technology is not finalized by this ADR; compare SQLite with an append-only local journal in a small crash-recovery PoC before locking the backend.
+Define a storage-agnostic **JobStateStore** domain interface and versioned manifest schema. The MVP must implement durable Job and Work Unit state with restart recovery. SQLite is the leading implementation candidate, but the storage technology is not finalized by this ADR; compare SQLite with an append-only local journal in a small crash-recovery PoC before locking the backend. This single-node durability requirement is part of the MVP; distributed leases and multi-writer coordination are deferred.
 
 The abstraction must explicitly distinguish:
 - **State store:** authoritative job/work-unit/attempt state and conditional transitions.
@@ -263,3 +263,35 @@ Finalize the local backend after comparing SQLite and a local append-only journa
 - [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)
 - [ADR-0010: Observability and Telemetry](ADR-0010-observability.md)
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
+
+
+## 16. MVP scope boundary
+
+Required for MVP:
+- Persist the Job record and sealed plan identity.
+- Persist Work Unit descriptors and terminal completion state.
+- Persist Attempt history sufficient to classify and recover interrupted work.
+- Resume remaining Work Units after process restart.
+- Prevent incomplete staged output from being treated as completed output.
+- Record validation and publication outcomes.
+- Use a single process/single writer for the first local backend.
+
+Deferred beyond MVP:
+- Resuming from an arbitrary byte offset or mid-row-group position.
+- Multi-process or multi-host simultaneous JobStateStore writers.
+- Distributed leases/heartbeats and worker registration.
+- Remote state-store backends such as PostgreSQL or shared object-store manifests.
+- A built-in distributed Coordinator.
+
+After restart, the currently incomplete Work Unit may be re-run from its beginning. Work Units whose accepted output and validation evidence were durably recorded must not be needlessly rewritten.
+
+## 17. Ownership boundary
+
+ADR-0013 is authoritative for persisted records, state machines, legal transitions, atomicity, durability, and restart recovery. It does not define:
+- how work is split or scheduled (ADR-0012);
+- object-storage operations or multipart transfer semantics (ADR-0005);
+- validation algorithms or equivalence guarantees (ADR-0006);
+- retryability and backoff classification (ADR-0008);
+- telemetry instrumentation and metric cardinality (ADR-0010).
+
+ADR-0012 may specify when the Scheduler calls the State Store, but it must not define a competing state machine.
