@@ -7,7 +7,7 @@
 | Project | UDC |
 | Full Name | Universal Data Converter |
 | Document | Product Requirements Document |
-| Version | 0.4.0 |
+| Version | 0.4.1 |
 | Status | Draft |
 | License | Apache License 2.0 (proposed; subject to dependency/license review) |
 | Development Model | OSS-first |
@@ -100,7 +100,7 @@ The documentation of about 40 existing tools was reviewed on 2026-11-15 against 
 | Schema compatibility classified before data moves | Partial gap. Engines increasingly fail at run time on overflow instead of corrupting silently; none was found that classifies the field mapping before the job starts |
 | Validation evidence recorded by the conversion job | Gap in integration only. Comparison tools such as datacompy and the Data Validation Tool exist separately. No converter was found that checks its own output against the source, and no tool was found that publishes its equality rules as a specification |
 | Resume from durably completed work | Gap only in combination. NiFi, SeaTunnel, dlt, and Airbyte resume from recorded progress but need a JVM, a server, or a Python runtime; the single-binary engines do not resume |
-| Publication of validated output only | Gap for plain files. Writing to Iceberg or Delta Lake already gives an atomic commit; for plain-file output, no reviewed tool stages, validates, and then publishes |
+| Publication of validated output only | Gap for plain files. Writing to Iceberg or Delta Lake already gives an atomic commit; for plain-file output, no reviewed tool stages, validates, and then publishes. UDC cannot make a set of plain files appear atomically to a reader that lists a prefix; what it adds is that nothing unvalidated becomes visible (FR-07) |
 | Table-format migration | Metadata-only registration and translation are served by the table formats' own tooling and by Apache XTable, and UDC does not duplicate them. Three gaps remain where row data is read or rewritten: checking plain files against a table schema before registration, validating a table against the files it came from, and loading files that need a rewrite with validation before the commit (§5.2) |
 
 Three consequences follow.
@@ -187,7 +187,7 @@ UDC distinguishes the following layers. Support at one layer does not imply supp
 | Storage | Local filesystem, S3, GCS, Azure Blob | Object/byte operations and provider capabilities |
 | Execution | Native streaming pipeline, DataFusion, DuckDB, Spark | Batch processing and optional transformations |
 | Orchestration | Planner, Scheduler, Worker | Job planning, work-unit lifecycle, retries, resource budgets, and invocation of validation and publication |
-| Publication | Generic Publisher, table-native commit | Making a validated output set visible through a destination-specific reference or a native table commit |
+| Publication | Generic Publisher, table-native commit | Making a validated output set visible in a stated publication mode or through a native table commit |
 
 **Priority and phase labels.** Two different labels are used and they must not be confused:
 
@@ -364,17 +364,27 @@ The MVP requires a durable local Job State Store, restart recovery, and explicit
 
 UDC must not present incomplete or unvalidated output as a successfully published dataset.
 
-For generic file/dataset output, the proposed protocol uses attempt-isolated staging, an immutable output manifest, validation, and a destination-specific publication reference. The publication mechanism must be selected from capabilities actually verified for the destination.
+For generic file/dataset output, the proposed protocol uses attempt-isolated staging outside the destination, an immutable output manifest, validation, and a publication mode. The mode is selected according to how the dataset's consumers find the data, and each mode has a stated guarantee:
+
+| Publication mode | Protects | Guarantee |
+|---|---|---|
+| Promotion (default) | Consumers that list a prefix, such as a query engine given a path or an external table location | Validated before visible: nothing appears under the destination before the whole output has passed validation, and a job that fails before publication leaves the destination unchanged. The set of objects does not appear atomically |
+| Reference | Consumers that read a publication reference | All or nothing: the consumer sees the previous output set or the new one |
+
+UDC does not claim an atomic commit for plain files read by listing a prefix. A consumer that needs a complete set waits for the completion marker that promotion writes last.
 
 Requirements:
 - Stage outputs separately from the published dataset.
 - Bind publication to the exact accepted output set.
-- Validate before making the output visible through the supported publication reference.
+- Validate before any output object reaches a location that consumers read.
+- Never place an output object over an existing object, and never delete an object the publication did not place.
+- Report the publication mode and its guarantee with every publication result.
 - Use conditional writes, version preconditions, or another verified destination-specific mechanism where available.
 - Reconcile ambiguous publication outcomes after process failure.
 - Detect conflicting writes to the same logical destination.
 - Clean up only unreferenced staging artifacts.
-- Document weaker guarantees or reject a safe-publication claim where the destination cannot provide the required primitive.
+- Reject the job at planning time where the destination cannot provide the primitives the selected mode requires; never fall back to writing directly into the destination.
+- When a publication is interrupted, complete it on resume, or withdraw the objects it placed when the job is abandoned.
 
 There is no universal atomic directory rename guarantee across object stores. Generic file/dataset publication is specified in [ADR-0017](adr/ADR-0017-output-publication-protocol.md). Table-format writes must use their native commit protocol as specified in ADR-0015.
 
@@ -530,7 +540,8 @@ The MVP should demonstrate:
 | Durable local Job State Store | Required |
 | Durable work-unit completion and process-restart resume | Required |
 | Explicit resume of a failed or cancelled job over its sealed plan | Required |
-| Generic safe publication | Required only for destination modes whose semantics are verified and documented |
+| Generic publication, Promotion mode (validated before visible) | Required for each storage provider in the release support matrix |
+| Generic publication, Reference mode (all or nothing for consumers that read the reference) | Optional; only with a consumer convention that has been implemented and verified (ADR-0017) |
 | Read-only Iceberg metadata inspection | First table-format target (Phase 5); not a prerequisite for the core file-conversion MVP unless explicitly selected as a release milestone |
 | DataFusion / DuckDB as mandatory runtime | Not selected; evaluate via ADR-0004 POC |
 | Spark integration | Deferred |
@@ -556,7 +567,7 @@ A job that ends FAILED or CANCELLED keeps its completed work units. An explicit 
 
 Execution is at-least-once. A retry may repeat computation; correctness depends on attempt-isolated staging, conditional acceptance, validation, and controlled publication. UDC does not claim exactly-once execution.
 
-Generic file/dataset output publication must use a destination mode whose guarantees have been tested. Prefix existence or successful object upload alone is not proof that a complete dataset has been published. Table-format publication is outside the Generic Publisher and must use the table's native commit protocol.
+Generic file/dataset output is published in a publication mode whose guarantee has been tested for the destination. The MVP default is Promotion mode: validated output is placed under the destination prefix only after validation, and a completion marker is written last. Prefix existence or successful object upload alone is not proof that a complete dataset has been published. Table-format publication is outside the Generic Publisher and must use the table's native commit protocol.
 
 See [ADR-0012](adr/ADR-0012-scalable-data-processing.md), [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md), and [ADR-0017](adr/ADR-0017-output-publication-protocol.md).
 
@@ -570,12 +581,12 @@ See [ADR-0012](adr/ADR-0012-scalable-data-processing.md), [ADR-0013](adr/ADR-001
 6. Validate schema (L1), row counts (L2), and logical fingerprints (L4), with result semantics, normalization rules version, and coverage clearly reported.
 7. Detect an injected changed value, dropped row, and duplicated row in the output through L4, and pass when only row order or physical encoding differs.
 8. Report actionable errors with retry classification.
-9. Keep incomplete or unvalidated output out of the supported published view.
+9. Keep unvalidated output out of the destination, and leave the destination unchanged when a job fails before publication.
 10. Resume remaining work after process restart, and after an explicit resume of a failed or cancelled job, using durable work-unit state and without rewriting completed work units.
 11. Demonstrate bounded memory on a dataset substantially larger than the configured memory budget.
 12. Demonstrate bounded queues and backpressure when the destination is slower than the source.
 13. Demonstrate retry isolation after a work-unit failure without accepting stale or partial output.
-14. Exercise ambiguous publication outcomes and verify idempotent reconciliation for each supported publication mode.
+14. Exercise ambiguous publication outcomes and interrupted publications, and verify idempotent reconciliation, completion on resume, and withdrawal on abandon for each supported publication mode.
 15. Provide reproducible CLI examples and automated unit/integration tests.
 
 ## 9. Architecture Principles
@@ -602,7 +613,7 @@ The initial implementation is a modular Rust codebase, not a set of independentl
 | Observability | Instrumentation, cardinality and redaction rules, and export | The job state machine |
 | Orchestration | Planning, work-unit scheduling, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, storage consistency semantics, validation semantics, or the publication protocol |
 | Job State Store | Durable Job/Plan/Work Unit/Attempt/Publication records, legal transitions, atomic acceptance, recovery, and explicit resume | Dataset payload I/O, format decoding, or table transactions |
-| Generic Publisher | File/dataset staging layout, output manifest, and visibility commit protocol | Table-native transactions, or inventing atomic rename |
+| Generic Publisher | File/dataset staging layout, output manifest, and publication modes with their guarantees | Table-native transactions, or inventing atomic rename |
 | Packaging and distribution | Distribution channels, official targets and feature set, crate and binary naming, release pipeline, and the public-release gate | Cargo feature mechanics, or persisted-state versioning |
 
 This table summarizes the responsibility map in [ADR-0001](adr/ADR-0001-initial-architecture.md), which is authoritative together with its shared vocabulary and conflict-resolution rules. Focused contracts are in ADR-0003 through ADR-0019.
@@ -644,7 +655,7 @@ Storage operations, cloud identity resolution, generic output publication, and t
 
 - ADR-0005: object operations and provider capabilities.
 - ADR-0016: identity source, credential resolution, and refresh.
-- ADR-0017: the Generic Publisher and its staging, output manifest, and visibility protocol.
+- ADR-0017: the Generic Publisher and its staging, output manifest, and publication modes.
 - ADR-0015: table-format snapshot and native commit protocol.
 
 UDC must not assume object stores provide atomic directory rename or a universal conditional-update primitive. Safe publication guarantees are destination-specific and must be capability-checked and tested.
@@ -873,7 +884,9 @@ Potential future evaluations include remote workers, alternative execution backe
 | Semantic differences between formats | Canonical logical schema, explicit mapping plans, and adversarial compatibility tests |
 | Adapter capability mismatch | Capability descriptors, versioned contracts, and tested support matrices |
 | Cloud API differences | Provider-specific capability reporting and integration tests |
-| Object-store publication assumptions | Destination-specific commit protocol; never assume atomic directory rename |
+| Object-store publication assumptions | Publication modes with stated guarantees, selected from verified capabilities; never assume atomic directory rename |
+| Promotion mode is mistaken for an atomic commit | State the mode and its guarantee with every publication result and in the documentation; write a completion marker for consumers that need a complete set; offer Reference mode once a consumer convention is verified |
+| The extra copy of promotion is too costly for large outputs | Provider-side copy within one store; measure promotion time against conversion time (ADR-0017); revisit the sealed version location if the cost is material |
 | Memory exhaustion or resource starvation | Byte-aware memory admission, bounded queues, backpressure, and separate I/O/CPU limits |
 | Partial migration failure | Attempt-isolated staging, durable acceptance, validation, publication reconciliation, and explicit resume over the sealed plan |
 | Process crash or duplicate work | Durable work-unit state; at-least-once execution with idempotent effects |
