@@ -7,7 +7,7 @@
 | Project | UDC |
 | Full Name | Universal Data Converter |
 | Document | Product Requirements Document |
-| Version | 0.4.1 |
+| Version | 0.5.0 |
 | Status | Draft |
 | License | Apache License 2.0 (proposed; subject to dependency/license review) |
 | Development Model | OSS-first |
@@ -18,23 +18,23 @@
 
 ## 1. Executive Summary
 
-UDC (Universal Data Converter) is an open-source, cloud-agnostic platform for data-format conversion, dataset migration, and integrity validation.
+UDC (Universal Data Converter) is an open-source tool that runs data-format conversions as verified, resumable jobs.
 
-Its mission is to make data portable, verifiable, and reliable across file formats, table formats, storage systems, and execution environments.
+Its mission is to make a conversion trustworthy: classified before it starts, validated against its source, resumable after a failure, and published only when it has passed.
 
 UDC aims to provide a unified product experience for:
 
+- Evaluating and applying explicit schema mappings before data moves.
+- Validating conversion results with clearly stated guarantees.
+- Running recoverable jobs with bounded resource consumption and controlled output publication.
 - Inspecting source datasets and their schemas.
 - Converting between supported file formats.
 - Moving data across supported object-storage providers.
-- Evaluating and applying explicit schema mappings.
-- Validating conversion results with clearly stated guarantees.
-- Running recoverable jobs with bounded resource consumption and controlled output publication.
 - Integrating with table formats through their native metadata and transaction protocols.
 
 UDC will reuse mature format, storage, table-protocol, and execution libraries where practical. It will not reimplement an entire query engine or table-format protocol merely to provide a common user experience.
 
-**Product principle:** UDC owns interoperability policy, job orchestration, validation policy, and user-facing capability reporting. Specialized libraries remain authoritative for the low-level format, storage, and table-protocol behavior they implement.
+**Product principle:** UDC owns schema-mapping policy, job orchestration, validation policy, and user-facing capability reporting. Specialized libraries remain authoritative for the low-level format, storage, and table-protocol behavior they implement.
 
 **Positioning.** Converting between these formats and reaching these storage systems are already served by mature tools (§2.5). UDC's intended contribution is the job layer around a conversion: classifying schema compatibility before data moves, recording validation evidence under published rules, resuming from durably completed work, and publishing only validated output. It delivers these together, as a single binary, for datasets stored as plain files rather than in a table format. Whether enough users need that combination is not yet established; §13.3 defines how it is tested.
 
@@ -124,16 +124,20 @@ References for this section:
 
 ## 3. Product Vision
 
-**One interface. Any format. Any cloud.**
+**Verified, resumable conversion jobs for plain-file datasets.**
 
-UDC will provide a common interface over heterogeneous data infrastructure without pretending that all formats, stores, engines, or table protocols have identical capabilities.
+UDC will make the result of a conversion something a user can check, without pretending that all formats, stores, engines, or table protocols have identical capabilities.
 
 The product is organized around four pillars:
 
-1. **Format interoperability:** inspect and convert supported physical representations while preserving or explicitly mapping logical meaning.
-2. **Cloud-agnostic data access:** access local and cloud object storage through capability-aware adapters.
-3. **Reliable migration execution:** plan work, bound resource use, isolate failures, recover completed work, and publish outputs safely.
-4. **Data integrity:** define schema compatibility and validation evidence explicitly.
+1. **Data integrity:** classify schema compatibility before data moves, and record validation evidence under published rules.
+2. **Reliable job execution:** plan work, bound resource use, isolate failures, recover completed work, and publish only validated output.
+3. **Format coverage:** inspect and convert supported physical representations while preserving or explicitly mapping logical meaning.
+4. **Storage reach:** access local and cloud object storage through capability-aware adapters.
+
+Pillars 1 and 2 are where UDC intends to differ from existing tools. Pillars 3 and 4 are prerequisites: they are built by reusing existing libraries, they are added where the job layer is needed, and they are not what UDC competes on (§2.5).
+
+The name Universal Data Converter is kept. "Universal" describes the intended reach of the job layer across formats and stores. It is not a claim to convert more formats than existing tools do.
 
 ## 4. Target Users and Primary Use Cases
 
@@ -150,7 +154,7 @@ Typical use cases:
 
 ### 4.2 Data Platform Engineer
 
-Needs reliable interoperability across lakehouse and storage technologies.
+Needs conversions and table loads whose results can be verified across lakehouse and storage technologies.
 
 Typical use cases:
 - Inspecting table metadata and supported table features.
@@ -948,6 +952,6 @@ A release is considered ready for its declared support level when:
 
 **Product Statement**
 
-UDC is not merely another file conversion utility.
+UDC does not aim to be another way to convert files.
 
-It is an open-source interoperability platform intended to make data portable, verifiable, and reliable across modern data infrastructure.
+It aims to make a conversion a job whose result can be trusted: classified before it starts, validated against its source, resumable after a failure, and published only when it has passed.

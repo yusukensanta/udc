@@ -1,10 +1,10 @@
 # UDC — Universal Data Converter
 
-**One interface. Any format. Any cloud.**
+**Verified, resumable conversion jobs for plain-file datasets.**
 
-UDC is an OSS-first, cloud-agnostic data format conversion and migration platform.
+UDC is an open-source command-line tool and library that runs data-format conversions as jobs whose result can be checked.
 
-Its goal is to make data portable, verifiable, and reliable across file formats, table formats, storage systems, and execution engines.
+Its goal is to make a conversion trustworthy: the schema mapping is classified before data moves, the output is validated against the source under published rules, an interrupted job resumes from completed work, and only validated output is published.
 
 > **Status:** Product definition and architecture design. This repository currently contains documentation only. There is no source code, build configuration, or released implementation yet, and no format or cloud integration should be considered supported until it is implemented here and covered by tests.
 
@@ -24,10 +24,12 @@ The planned crate and directory organization is illustrated in [PRD §11.2](docs
 
 These describe the intended product, not current capabilities.
 
-- **Layered format support:** distinguishes serialization formats, columnar file formats, interchange formats, table formats, and catalogs. Targets on the roadmap include Parquet, CSV, JSON, Avro, ORC, Arrow IPC / Feather, Lance, Vortex, Iceberg, Delta Lake, and Hudi.
-- **Cloud-agnostic storage:** local filesystem, Amazon S3, Google Cloud Storage, and Azure Blob Storage.
-- **Reliable migration:** staged output, retry, durable work-unit completion, resume, and safe publication.
-- **Data integrity:** schema compatibility and logical data validation with clearly stated guarantees.
+- **Data integrity:** schema compatibility classified before data moves, and validation of the output against the source under published rules, with the guarantee of each result stated.
+- **Reliable job execution:** bounded resource use, staged output, retry, durable work-unit completion, resume, and publication of validated output only.
+- **Format coverage:** Parquet, CSV, and JSON first; Avro, ORC, and Arrow IPC later; Apache Iceberg as the first table format. Formats are added where the job layer is needed, and the full list with priorities is in [PRD §5](docs/PRD.md#5-product-scope-and-capability-taxonomy).
+- **Storage reach:** local filesystem, Amazon S3, Google Cloud Storage, and Azure Blob Storage.
+
+The first two pillars are where UDC intends to differ from existing tools. The last two are prerequisites, built on existing libraries, and are not what UDC competes on.
 
 ## MVP direction
 

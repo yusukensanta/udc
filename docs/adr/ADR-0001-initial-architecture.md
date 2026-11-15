@@ -7,7 +7,7 @@
 
 ## 1. Context
 
-UDC must support file conversion, cross-cloud data movement, validation, and eventually table-format interoperability. These capabilities span concerns with different lifecycles and semantics: physical encodings, logical types, object storage, table transactions, execution, and job orchestration.
+UDC must support file conversion between storage systems, validation, recoverable jobs, and eventually table-format integration. These capabilities span concerns with different lifecycles and semantics: physical encodings, logical types, object storage, table transactions, execution, and job orchestration.
 
 The initial design must keep the MVP operable as a local tool while avoiding abstractions that prevent later integrations. Technology choices should be justified against explicit decision drivers and recorded in focused ADRs. This ADR establishes architectural boundaries; it does not select every implementation library.
 

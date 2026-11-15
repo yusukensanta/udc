@@ -2,7 +2,7 @@
 
 Thank you for your interest in UDC.
 
-UDC is an OSS-first project focused on data format interoperability, cross-cloud migration, and data integrity. Contributions of all sizes are welcome, including bug reports, documentation improvements, tests, and code.
+UDC is an OSS-first project focused on data integrity and reliable execution of data-format conversion jobs. Contributions of all sizes are welcome, including bug reports, documentation improvements, tests, and code.
 
 ## Current status
 
