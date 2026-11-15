@@ -7,7 +7,7 @@
 | Project | UDC |
 | Full Name | Universal Data Converter |
 | Document | Product Requirements Document |
-| Version | 0.3.1 |
+| Version | 0.4.0 |
 | Status | Draft |
 | License | Apache License 2.0 (proposed; subject to dependency/license review) |
 | Development Model | OSS-first |
@@ -35,6 +35,8 @@ UDC aims to provide a unified product experience for:
 UDC will reuse mature format, storage, table-protocol, and execution libraries where practical. It will not reimplement an entire query engine or table-format protocol merely to provide a common user experience.
 
 **Product principle:** UDC owns interoperability policy, job orchestration, validation policy, and user-facing capability reporting. Specialized libraries remain authoritative for the low-level format, storage, and table-protocol behavior they implement.
+
+**Positioning.** Converting between these formats and reaching these storage systems are already served by mature tools (§2.5). UDC's intended contribution is the job layer around a conversion: classifying schema compatibility before data moves, recording validation evidence under published rules, resuming from durably completed work, and publishing only validated output. It delivers these together, as a single binary, for datasets stored as plain files rather than in a table format. Whether enough users need that combination is not yet established; §13.3 defines how it is tested.
 
 The initial product is a local CLI and library backed by a modular Rust codebase. The MVP is single-node. Self-hosted service deployment and distributed workers are possible future directions, not MVP commitments.
 
@@ -85,6 +87,41 @@ A successful process exit does not prove that a migration preserved the source d
 
 UDC must make conversion policy explicit and report what each validation level proves—and what it does not prove.
 
+### 2.5 Existing tools and where UDC fits
+
+The documentation of about 40 existing tools was reviewed on 2026-11-15 against the capabilities planned here. No tool was executed for that review, and several "not found" results rest on a capability being absent from documentation rather than on an explicit statement. The table below must be read with that limit.
+
+| Planned capability | Relative to existing tools |
+|---|---|
+| File-format conversion (Parquet, CSV, JSON) | Already served. DuckDB and clickhouse-local convert between these formats from a single binary; Spark and Polars convert them as well |
+| Local, S3, GCS, and Azure storage, including across clouds | Already served. The same engines read and write these stores, and rclone is the baseline for moving bytes between any pair |
+| Single-binary distribution | Already served when taken on its own |
+| Bounded memory | Unproven. Existing engines document streaming or spilling rather than a hard byte bound, but UDC has no measurement yet |
+| Schema compatibility classified before data moves | Partial gap. Engines increasingly fail at run time on overflow instead of corrupting silently; none was found that classifies the field mapping before the job starts |
+| Validation evidence recorded by the conversion job | Gap in integration only. Comparison tools such as datacompy and the Data Validation Tool exist separately. No converter was found that checks its own output against the source, and no tool was found that publishes its equality rules as a specification |
+| Resume from durably completed work | Gap only in combination. NiFi, SeaTunnel, dlt, and Airbyte resume from recorded progress but need a JVM, a server, or a Python runtime; the single-binary engines do not resume |
+| Publication of validated output only | Gap for plain files. Writing to Iceberg or Delta Lake already gives an atomic commit; for plain-file output, no reviewed tool stages, validates, and then publishes |
+| Table-format migration | Metadata-only registration and translation are served by the table formats' own tooling and by Apache XTable, and UDC does not duplicate them. Three gaps remain where row data is read or rewritten: checking plain files against a table schema before registration, validating a table against the files it came from, and loading files that need a rewrite with validation before the commit (§5.2) |
+
+Three consequences follow.
+
+1. **UDC is not differentiated by conversion or storage reach.** Its distinct part is the job layer around a conversion: pre-flight schema classification, validation evidence under published rules, resume, and publication of validated output, for datasets stored as plain files, in a single binary. Each element exists in some tool. The combination was not found.
+2. **The realistic alternative is a wrapped engine, not a bare one.** An existing engine driven by a script that adds a per-attempt staging prefix, a row-count check, a ledger of completed units, and a completion marker can reproduce much of that job layer. UDC therefore saves integration work; it does not make possible something that was impossible. §13.3 uses this configuration as the reference to measure against.
+3. **The failures are documented; the demand is not.** The failure modes in §2.4 are well supported, most strongly non-atomic job commit on object stores. No direct evidence was found that practitioners want one integrated tool for them. That is an absence of evidence, not evidence of absence. It is carried as an open risk (§16) and tested through the gates in §13.3.
+
+The position is also moving. Engines fail loudly more often than they used to, which narrows the schema-safety gap, and adoption of table formats reduces the number of users who publish plain files. The plain-file-to-table operations in §5.2 are the response to the second trend: they apply the same job layer where the destination is a table.
+
+References for this section:
+
+- [DuckDB `COPY`](https://duckdb.org/docs/2.0/sql/statements/copy.html) and [tuning workloads](https://duckdb.org/docs/2.0/guides/performance/how_to_tune_workloads.html)
+- [clickhouse-local](https://clickhouse.com/docs/operations/utilities/clickhouse-local)
+- [rclone overview](https://rclone.org/overview/)
+- [datacompy CLI](https://capitalone.github.io/datacompy/cli.html) and [Data Validation Tool](https://github.com/GoogleCloudPlatform/professional-services-data-validator)
+- [Spark cloud integration](https://spark.apache.org/docs/latest/cloud-integration.html) and [Hadoop S3A committer architecture](https://hadoop.apache.org/docs/stable/hadoop-aws/tools/hadoop-aws/committer_architecture.html)
+- [NiFi overview](https://nifi.apache.org/nifi-docs/overview.html), [SeaTunnel state storage and recovery](https://seatunnel.apache.org/docs/engines/zeta/state-storage-and-recovery), [dlt running in production](https://dlthub.com/docs/running-in-production/running), and [Airbyte resumability](https://docs.airbyte.com/platform/understanding-airbyte/resumability)
+- [Iceberg table migration](https://iceberg.apache.org/docs/latest/table-migration/) and [Spark procedures](https://iceberg.apache.org/docs/latest/spark-procedures/)
+- [Delta Lake table utilities](https://docs.delta.io/latest/delta-utility.html) and [Apache XTable](https://xtable.apache.org/docs/how-to/)
+
 ## 3. Product Vision
 
 **One interface. Any format. Any cloud.**
@@ -118,6 +155,9 @@ Needs reliable interoperability across lakehouse and storage technologies.
 Typical use cases:
 - Inspecting table metadata and supported table features.
 - Planning a table-format migration.
+- Checking plain files against a table schema before registering them with the table format's own tooling.
+- Verifying a table against the plain files it was created from.
+- Loading CSV, JSON, or Parquet that needs a rewrite into a table, with validation before the commit.
 - Rewriting table data while preserving snapshot and delete semantics.
 - Standardizing data movement and validation across platforms.
 
@@ -152,7 +192,7 @@ UDC distinguishes the following layers. Support at one layer does not imply supp
 **Priority and phase labels.** Two different labels are used and they must not be confused:
 
 - **Capability priority (P0–P3)** ranks integration targets *within one layer's table* below. P0 is the first group of targets in that layer, P1 the next, P2 requires an evaluation before any commitment, and P3 depends on earlier capabilities in the same layer. A priority label says nothing about MVP membership or timing.
-- **Roadmap phase (Phase 0–7)** states sequencing and is defined in §12. The Phase column below links each capability to it.
+- **Roadmap phase (Phase 0–8)** states sequencing and is defined in §12. The Phase column below links each capability to it.
 
 MVP membership is defined only by §8.2.
 
@@ -165,9 +205,9 @@ The format list below is a capability roadmap, not a claim that these formats ar
 | Apache Parquet | Read and write | P0 | Phase 0 | Primary analytical columnar format |
 | CSV | Read and write | P0 | Phase 1 | Interchange format; parsing and type inference policies must be explicit |
 | JSON / JSONL | Read and write | P0 | Phase 1 | Semi-structured interchange; schema inference and heterogeneous records require explicit policy |
-| Apache Avro | Read and write | P1 | Phase 6 | Row-oriented serialization and schema evolution |
-| Apache ORC | Read and write | P1 | Phase 6 | Columnar analytical format |
-| Apache Arrow IPC / Feather | Read and write | P1 | Phase 6 | Arrow-native interchange and file representation |
+| Apache Avro | Read and write | P1 | Phase 7 | Row-oriented serialization and schema evolution |
+| Apache ORC | Read and write | P1 | Phase 7 | Columnar analytical format |
+| Apache Arrow IPC / Feather | Read and write | P1 | Phase 7 | Arrow-native interchange and file representation |
 | Lance File | Evaluate read/write | P2 | Not scheduled | Distinct from Lance Table; library and feature coverage must be verified |
 | Vortex | Evaluate read/write | P2 | Not scheduled | Evolving columnar ecosystem; maturity and feature coverage require validation |
 
@@ -180,11 +220,16 @@ UDC support is defined by the capabilities implemented and tested in its adapter
 | Format | Intended capability | Priority | Phase | Boundary |
 |---|---|---|---|---|
 | Apache Iceberg | Metadata and snapshot inspection | P0 | Phase 5 | Initial table-format integration target; read-only inspection does not imply rewrite |
-| Apache Iceberg | Data-file rewrite / migration | P1 | Phase 7 | Requires snapshot pinning, delete handling, conflict detection, and native commit |
+| Apache Iceberg | Compatibility check of plain files against a table schema, before registration by another tool | P0 | Phase 5 | Read-only; UDC produces a report and does not register files |
+| Apache Iceberg | Validation of a plain-file dataset against a table snapshot | P0 | Phase 5 | Read-only; refused when the snapshot carries deletes the adapter cannot apply |
+| Apache Iceberg | Validated ingestion of plain files by append commit | P1 | Phase 6 | For data that must be rewritten; append only; requires a catalog integration and its ADR |
+| Apache Iceberg | Data-file rewrite / migration of an existing table | P1 | Phase 8 | Requires snapshot pinning, delete handling, conflict detection, and native commit |
 | Delta Lake | Integration evaluation | P2 | Not scheduled | Protocol feature compatibility and available Rust/JVM integration must be assessed |
 | Apache Hudi | Integration evaluation | P2 | Not scheduled | Timeline and table-type semantics must be assessed |
 | Lance Table | Metadata inspection | P2 | Not scheduled | Separate from Lance File |
 | Lance Table | Migration / rewrite | P3 | Not scheduled | Must account for fragments, deletions, indices, manifests, and native commit behavior |
+
+**Plain files to a table.** UDC does not reimplement metadata-only adoption of existing files: Iceberg `migrate`, `snapshot`, and `add_files`, Delta Lake `CONVERT TO DELTA`, and Apache XTable already register or translate files without reading row data. UDC covers the parts of that path where row data is read or rewritten: the compatibility check, dataset-to-snapshot validation, and validated ingestion listed above. The operations are defined in [ADR-0015](adr/ADR-0015-table-format-integration-boundary.md).
 
 A table-format feature is supported only when its adapter can preserve the relevant table semantics. Unsupported protocol features must be surfaced explicitly; they must not be silently ignored. The authoritative integration boundary and snapshot/commit responsibilities are specified in [ADR-0015](adr/ADR-0015-table-format-integration-boundary.md).
 
@@ -288,7 +333,13 @@ Validation levels:
 
 Transfer integrity is a separate check, not a validation level. A physical checksum or ETag comparison establishes that stored or copied bytes are intact. It must not be reported as L4 or presented as proof of logical equivalence.
 
-The level names, algorithms, normalization rules, and the guarantee each result may claim are governed by [ADR-0006: Validation Semantics](adr/ADR-0006-validation-semantics.md).
+Requirements:
+- The normalization rules that define logical equality are published as a versioned specification with conformance vectors. Every result records the rules version and the normalization policy in effect.
+- Target-side evidence is taken from the stored output by reading it back, not from counters held by the writer.
+- Each result states what it covers relative to the schema mapping. A field whose mapping is lossy or policy-dependent is validated after coercion, and the result says so.
+- Value-level evidence (L4) must be computable within the bounded-memory streaming model, without sorting the dataset.
+
+The level names, algorithms, normalization rules, the source of evidence, and the guarantee each result may claim are governed by [ADR-0006: Validation Semantics](adr/ADR-0006-validation-semantics.md).
 
 ### FR-06: Job lifecycle and recovery
 
@@ -448,7 +499,7 @@ The MVP should demonstrate:
 - Applying configurable compression and writer options.
 - Preserving supported partition structure.
 - Applying basic, explicit schema mapping.
-- Validating schema (L1) and row counts (L2).
+- Validating schema (L1), row counts (L2), and logical fingerprints (L4) under the published normalization rules.
 - Staging and publishing validated output through a supported destination publication mode.
 - Recovering completed work units after process restart.
 
@@ -467,7 +518,9 @@ The MVP should demonstrate:
 | Basic schema compatibility and mapping | Required |
 | Schema validation (L1) | Required |
 | Row-count validation (L2) | Required |
-| Statistics, logical fingerprint, and exact comparison (L3–L5) | Not an MVP commitment |
+| Normalization rules, version 1, published with conformance vectors | Required for the logical types reachable from the MVP formats |
+| Logical fingerprint validation (L4) | Required |
+| Statistics and exact comparison (L3, L5) | Not an MVP commitment |
 | Transfer-integrity check (physical checksum; not a validation level) | Basic, with guarantee clearly labeled |
 | Streaming and bounded memory | Required |
 | Bounded concurrency and backpressure | Required |
@@ -481,6 +534,9 @@ The MVP should demonstrate:
 | Spark integration | Deferred |
 | Avro / ORC / Arrow IPC | Deferred from initial MVP |
 | Lance File / Vortex | Deferred pending ecosystem and adapter evaluation |
+| Plain-file compatibility check and dataset-to-snapshot validation for Iceberg | Deferred (Phase 5) |
+| Validated ingestion of plain files into an Iceberg table | Deferred (Phase 6) |
+| Metadata-only registration or translation of existing files | Not planned; provided by the table formats' own tooling |
 | Full Iceberg / Delta / Hudi / Lance Table migration | Deferred |
 | Mid-work-unit resume | Deferred |
 | Reuse of completed work across different plans or jobs | Deferred |
@@ -509,15 +565,16 @@ See [ADR-0012](adr/ADR-0012-scalable-data-processing.md), [ADR-0013](adr/ADR-001
 3. Read and write through the cloud storage providers included in the release support matrix.
 4. Preserve supported partition structures or report unsupported layouts.
 5. Detect incompatible schema mappings before data movement begins.
-6. Validate schema (L1) and row counts (L2), with result semantics clearly reported.
-7. Report actionable errors with retry classification.
-8. Keep incomplete or unvalidated output out of the supported published view.
-9. Resume remaining work after process restart, and after an explicit resume of a failed or cancelled job, using durable work-unit state and without rewriting completed work units.
-10. Demonstrate bounded memory on a dataset substantially larger than the configured memory budget.
-11. Demonstrate bounded queues and backpressure when the destination is slower than the source.
-12. Demonstrate retry isolation after a work-unit failure without accepting stale or partial output.
-13. Exercise ambiguous publication outcomes and verify idempotent reconciliation for each supported publication mode.
-14. Provide reproducible CLI examples and automated unit/integration tests.
+6. Validate schema (L1), row counts (L2), and logical fingerprints (L4), with result semantics, normalization rules version, and coverage clearly reported.
+7. Detect an injected changed value, dropped row, and duplicated row in the output through L4, and pass when only row order or physical encoding differs.
+8. Report actionable errors with retry classification.
+9. Keep incomplete or unvalidated output out of the supported published view.
+10. Resume remaining work after process restart, and after an explicit resume of a failed or cancelled job, using durable work-unit state and without rewriting completed work units.
+11. Demonstrate bounded memory on a dataset substantially larger than the configured memory budget.
+12. Demonstrate bounded queues and backpressure when the destination is slower than the source.
+13. Demonstrate retry isolation after a work-unit failure without accepting stale or partial output.
+14. Exercise ambiguous publication outcomes and verify idempotent reconciliation for each supported publication mode.
+15. Provide reproducible CLI examples and automated unit/integration tests.
 
 ## 9. Architecture Principles
 
@@ -688,14 +745,17 @@ The roadmap is capability-driven, not strictly time-driven. Phases identify sequ
 
 | Phase | Deliverable |
 |---|---|
-| Phase 0 | Core contracts, local Parquet inspection/conversion, and reproducible baseline |
+| Phase 0 | Core contracts, local Parquet inspection/conversion, reproducible baseline, and the reference configuration with the first evidence gate (§13.3) |
 | Phase 1 | CSV / JSON adapters and basic schema mapping |
-| Phase 2 | Validation semantics, durable local job/work-unit recovery, and explicit resume |
+| Phase 2 | Validation semantics including normalization rules version 1 and L4, durable local job/work-unit recovery, and explicit resume |
 | Phase 3 | S3 / GCS integration and verified generic output publication |
 | Phase 4 | Azure integration, reliability hardening, and performance benchmarks |
-| Phase 5 | Iceberg metadata inspection |
-| Phase 6 | Avro / ORC / Arrow IPC and additional format coverage |
-| Phase 7 | Table-format rewrites, distributed execution, SDKs, and external integrations as independently validated capabilities |
+| Phase 5 | Read-only Iceberg: metadata inspection, compatibility check of plain files before registration, and dataset-to-snapshot validation |
+| Phase 6 | Validated ingestion of plain files into an Iceberg table by append commit |
+| Phase 7 | Avro / ORC / Arrow IPC and additional format coverage |
+| Phase 8 | Table-format rewrites, distributed execution, SDKs, and external integrations as independently validated capabilities |
+
+Phases 0–1 build conversion, which existing tools already provide (§2.5). The job layer that distinguishes UDC arrives in Phases 2–3. The evidence gate at the end of Phase 0 exists so that this investment is checked before it is made. After the MVP, the table path (Phases 5–6) is sequenced ahead of additional file formats (Phase 7), because more formats repeat what existing tools provide and the table path does not.
 
 The MVP defined in §8 corresponds to Phases 0–4; Azure's inclusion in the MVP release remains gated on tested support (§8.2). This is a proposed sequence and may change as implementation evidence is gathered. The MVP remains single-node; bounded resource use and recovery are MVP requirements, not late-stage scale-out features. See [ADR-0012](adr/ADR-0012-scalable-data-processing.md) and [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md).
 
@@ -708,6 +768,7 @@ The MVP defined in §8 corresponds to Phases 0–4; Azure's inclusion in the MVP
 - Conversion throughput under a documented workload and environment.
 - Peak resident memory and maximum in-flight bytes.
 - Validation result coverage and false-assurance prevention tests.
+- Cost of each validation level relative to the same conversion without validation.
 - Successful job completion and restart-recovery rates.
 - Retry isolation and publication-reconciliation correctness.
 - Unsupported capability detection accuracy.
@@ -722,6 +783,43 @@ The MVP defined in §8 corresponds to Phases 0–4; Azure's inclusion in the MVP
 - Documentation and example usage.
 
 GitHub Stars are supplementary indicators, not the primary success metric.
+
+### 13.3 Value hypotheses and evidence gates
+
+§2.5 identifies where UDC could add value. It does not show that users need it. The hypotheses below turn that question into things that can be checked.
+
+They are assessed against a **reference configuration**: an existing single-binary engine driven by a script that adds a per-attempt staging prefix, a row-count check with read-back, a ledger of completed units, and a completion marker, run on the MVP reference demonstration (§8.1).
+
+| ID | Hypothesis | Evidence | Gate |
+|---|---|---|---|
+| H1 | Some users publish converted datasets as plain files rather than through a table format, and partial or unverified output is a real cost to them | Conversations with practitioners outside the project; public issue reports or write-ups describing the problem | End of Phase 0 |
+| H2 | The reference configuration is costly to build or leaves gaps in practice | Build it. Interrupt writes at several points against a disposable bucket. Record what remains at the destination (partial objects, pending multipart uploads) and what the script had to handle | End of Phase 0 |
+| H3 | UDC holds a memory bound that the reference configuration does not | Peak resident memory of both on a dataset substantially larger than the budget (§8.4; ADR-0004 proof of concept) | Before ADR-0004 is finalized |
+| H4 | Value-level validation inside the job finds faults that L1 and L2 miss, at an acceptable cost | Fault-injection results and the cost of L4 relative to the same conversion without validation (ADR-0006) | End of Phase 2 |
+| H5 | Users moving plain files into a table format want the schema check before registration, or validation tied to the commit, and do not get it from the table format's own tooling | Conversations with practitioners who have run such a migration; issue reports on registered files that did not match the table | Before Phase 5 starts |
+
+Rules for the gates:
+
+- The bar for a hypothesis is written down before its evidence is collected, so that the result cannot move the bar.
+- A hypothesis without evidence at its gate counts as not supported, and is recorded as such in this document.
+- If H1 or H2 is not supported at the end of Phase 0, the maintainers choose one of the following before Phase 2 starts and record the choice here:
+  1. Narrow UDC to the job layer over an existing engine used as the execution backend. This feeds ADR-0004.
+  2. Narrow UDC to validating conversions performed by other tools.
+  3. Continue as planned, with the reason stated.
+  4. Stop.
+- If H3 is not supported, bounded memory stays a requirement (NFR-01) but is no longer described as a differentiator.
+- If H4 is not supported, the L4 commitment in §8.2 is reconsidered before the MVP release.
+- If H5 is not supported, Phases 5–6 are reduced to metadata inspection or reordered behind Phase 7.
+
+Proposed starting bars, to be confirmed by the maintainers before collection begins:
+
+- **H1:** at least five practitioners outside the project independently describe publishing plain-file datasets from conversion jobs and a cost caused by partial or unverified output.
+- **H2:** at least one interruption case leaves output visible to readers, or leaves state that the script cannot reconcile without implementing the equivalent of acceptance (ADR-0013) and publication (ADR-0017).
+- **H3:** the reference configuration exceeds the memory budget on the test dataset and UDC stays within it.
+- **H4:** L4 detects every fault class listed in the ADR-0006 validation plan, and its cost stays within a bound set before measurement.
+- **H5:** at least three practitioners outside the project independently describe a plain-file-to-table migration in which a mismatch was found after registration, or in which validation had to be built separately.
+
+After the first release, the adoption metrics in §13.2 are read against these hypotheses: use of validation, resume, and publication counts as evidence for the job layer, and use of conversion alone does not.
 
 ## 14. Future Considerations (Non-MVP)
 
@@ -764,7 +862,12 @@ Potential future evaluations include remote workers, alternative execution backe
 
 | Risk | Mitigation |
 |---|---|
-| Existing OSS overlap | Focus on format interoperability, migration reliability, and validation evidence |
+| Existing tools already provide conversion, storage reach, and single-binary distribution (§2.5) | Do not position UDC on those; concentrate differentiation on the job layer for plain-file datasets; measure against the reference configuration (§13.3) |
+| Demand for an integrated job layer is unproven | Evidence gates H1 and H2 at the end of Phase 0, with the recorded options in §13.3 if they are not supported |
+| The gap narrows as engines fail loudly and table formats spread | Repeat the existing-tool review before each release that changes positioning; apply the job layer to table destinations through the plain-file-to-table operations (§5.2, ADR-0015) |
+| The plain-file-to-table path depends on append and commit support in a table library and on a catalog contract that has no ADR yet | Gate each operation on tested adapter capabilities; write the catalog ADR before Phase 6; report a missing capability as unsupported instead of emulating it |
+| Differentiating validation arrives too late or costs too much | Normalization rules version 1 and L4 are MVP commitments; fault detection and cost are measured (H4) |
+| Adding L4 enlarges the MVP | Limit rules version 1 to the logical types reachable from the MVP formats; keep L3 and L5 deferred |
 | Semantic differences between formats | Canonical logical schema, explicit mapping plans, and adversarial compatibility tests |
 | Adapter capability mismatch | Capability descriptors, versioned contracts, and tested support matrices |
 | Cloud API differences | Provider-specific capability reporting and integration tests |
@@ -790,7 +893,7 @@ Architecture contracts and decisions are tracked in the ADRs. A Proposed or Unde
 | [ADR-0003](adr/ADR-0003-canonical-data-model.md) | Canonical logical schema and schema compatibility | Proposed |
 | [ADR-0004](adr/ADR-0004-execution-engine-selection.md) | Execution backend selection and POC | Proposed — Under Evaluation |
 | [ADR-0005](adr/ADR-0005-storage-abstraction.md) | Storage abstraction and provider capabilities | Proposed |
-| [ADR-0006](adr/ADR-0006-validation-semantics.md) | Validation levels (L1–L5), transfer integrity, and logical equality | Proposed |
+| [ADR-0006](adr/ADR-0006-validation-semantics.md) | Validation levels (L1–L5), normalization rules, transfer integrity, and logical equality | Proposed |
 | [ADR-0007](adr/ADR-0007-async-runtime-and-concurrency.md) | Async runtime and concurrency primitives | Proposed |
 | [ADR-0008](adr/ADR-0008-error-handling-and-retry.md) | Error categories and retry policy | Proposed |
 | [ADR-0009](adr/ADR-0009-cli-and-configuration.md) | CLI, job configuration, and configuration precedence | Proposed |
@@ -815,6 +918,7 @@ A release is considered ready for its declared support level when:
 - Compatibility tests pass for the declared format/library versions.
 - Required cloud integration tests pass for the declared provider capabilities.
 - Schema mapping and validation guarantees are tested, including adversarial cases.
+- For releases claiming L4 or L5, the normalization rules version in use is published with its conformance vectors.
 - Failure and retry scenarios are tested.
 - Work-unit completion is durably recorded, and process-restart recovery and explicit resume are tested, for releases claiming resumability.
 - Publication failure and ambiguous-acknowledgement scenarios are tested for each supported publication mode.
