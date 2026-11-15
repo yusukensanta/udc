@@ -43,6 +43,7 @@ A format adapter must expose an explicit capability descriptor. Unsupported capa
 Expose immutable metadata such as:
 - format identifier and adapter version;
 - supported read/write operations;
+- read-back support: whether the adapter can read everything its writer can produce;
 - supported logical and physical types;
 - metadata-only inspection support;
 - safe split discovery and split independence;
@@ -97,6 +98,8 @@ Writer contract requirements:
 
 Final visibility is owned by the Generic Publisher under ADR-0017, or by the table-native commit under ADR-0015 when the destination is a table.
 
+**Read-back is required of a target format.** Validation takes its target-side evidence by reading the staged output back (ADR-0006). A format is therefore accepted as the target of a job only if the adapter can also read what it writes, through a reader that meets §5.4. An adapter that can write a format but cannot read it back reports this in its descriptor, and the Planner rejects a job that selects the format as a target with a Compatibility error (ADR-0008). No mode skips target-side validation for such a format. An adapter that can read a format but not write it is unaffected: the format can be a source.
+
 ### 5.6 Schema mapping boundary
 
 Adapters map physical schemas to/from the canonical logical schema defined in ADR-0003. They must preserve format-specific metadata where required and classify unknown/unsupported annotations. They do not independently invent cross-format coercion policy.
@@ -120,6 +123,7 @@ Public adapter contracts should be narrow and stable. Internal library wrappers 
 Every adapter must provide:
 - format conformance fixtures and malformed/corrupt input tests;
 - logical schema round-trip tests against ADR-0003;
+- read-back tests proving that the reader reads everything the writer can produce, with every supported writer option, to the same logical values;
 - cancellation and bounded-memory tests;
 - split coverage tests proving no missing or overlapping records;
 - deterministic output and writer-finalization tests;
@@ -137,6 +141,7 @@ Every adapter must provide:
 - Logical type semantics and cross-format coercion policy — ADR-0003.
 - Object I/O — ADR-0005.
 - Final visibility of written output — ADR-0017.
+- What target-side validation evidence is and why it needs read-back — ADR-0006.
 - Table-level semantics above data files — ADR-0015.
 - CPU and blocking-work execution constraints — ADR-0007.
 
@@ -148,6 +153,7 @@ Revisit when a new format exposes capabilities that cannot fit the current contr
 
 - [ADR-0003: Canonical Data Model and Schema Compatibility](ADR-0003-canonical-data-model.md)
 - [ADR-0005: Storage Abstraction](ADR-0005-storage-abstraction.md)
+- [ADR-0006: Validation Semantics](ADR-0006-validation-semantics.md)
 - [ADR-0007: Async Runtime and Concurrency Control](ADR-0007-async-runtime-and-concurrency.md)
 - [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)

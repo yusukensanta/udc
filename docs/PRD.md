@@ -289,6 +289,7 @@ Requirements:
 - Projection and split parallelism only where the relevant adapter can guarantee their semantics.
 - Configurable output-file sizing where supported.
 - Explicit reporting of unsupported source/target capability combinations.
+- A format is offered as a conversion target only if UDC can also read it, because validation reads the output back.
 
 ### FR-03: Storage integration
 

@@ -86,7 +86,7 @@ A rule is not relaxed silently when a target format cannot satisfy it. The field
 
 ### 4.3 Where evidence is taken from
 
-**Target side.** Evidence for L2 to L5 is taken from the staged output as stored: UDC reads back what it wrote. Counters held by the writer are not evidence, because they do not show that the stored bytes decode to those rows. A figure taken from the format metadata of the stored object, such as a Parquet footer row count, is allowed where the level permits it and is labelled as metadata (§4.5).
+**Target side.** Evidence for L2 to L5 is taken from the staged output as stored: UDC reads back what it wrote. Counters held by the writer are not evidence, because they do not show that the stored bytes decode to those rows. A figure taken from the format metadata of the stored object, such as a Parquet footer row count, is allowed where the level permits it and is labelled as metadata (§4.5). Because of this rule, a format that UDC can write but cannot read back is not accepted as a job target (ADR-0014).
 
 **Source side.** What the source-side evidence is computed from depends on the compatibility outcome of each field in the SchemaMappingPlan (ADR-0003):
 
