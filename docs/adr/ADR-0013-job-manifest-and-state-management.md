@@ -149,6 +149,8 @@ Contains job_id, the generation number, its trigger (initial run or explicit res
 | FAILED | none | Error classification recorded |
 | ABANDONED | none | Lease expired or execution owner disappeared |
 
+State transitions must be performed by the orchestration layer through compare-and-swap semantics or a transaction. A stale worker must not move a completed unit back to RUNNING or overwrite its accepted attempt.
+
 ### 6.4 Validation-only jobs
 
 A validation-only job (`udc validate`, ADR-0009) compares two existing datasets and writes no output objects.
@@ -157,8 +159,6 @@ A validation-only job (`udc validate`, ADR-0009) compares two existing datasets 
 - The job moves from VALIDATING to SUCCEEDED when the evidence of the two sides agrees at every selected level, and to FAILED with a Validation error (ADR-0008) when it does not. It never enters PUBLISHING and has no PublicationRecord.
 - Restart recovery and explicit resume apply as for any job: evidence of COMPLETED Work Units is kept and not recomputed.
 - The plan digest covers both datasets' identities, the declared mapping, and the validation levels with the normalization rules version and policy.
-
-State transitions must be performed by the orchestration layer through compare-and-swap semantics or a transaction. A stale worker must not move a completed unit back to RUNNING or overwrite its accepted attempt.
 
 ## 7. Atomicity and concurrency control
 
