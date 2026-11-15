@@ -47,7 +47,7 @@ This is the proposed category set. Individual error codes within each category a
 | Authentication / authorization | Credentials missing, expired, or not refreshable; permission denied | Not retried without an explicit policy |
 | Transient | Selected timeouts, connection resets, provider throttling, temporary identity-endpoint failure | Retried with backoff, within budget |
 | Resource | Memory budget exhausted, disk full, quota exceeded | Not retried by default; policy-dependent |
-| Conflict | Source changed after planning, concurrent update of the destination, table commit conflict | Never retried blindly; requires reconciliation or a new plan |
+| Conflict | Source changed after planning, concurrent update of the destination, an existing object at a destination name, table commit conflict | Never retried blindly; requires reconciliation or a new plan |
 | Cancelled | User cancellation, graceful shutdown | Never retried |
 | Internal | Violated invariant, illegal state transition, other defect | Never retried |
 

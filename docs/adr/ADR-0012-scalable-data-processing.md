@@ -174,7 +174,7 @@ The processing architecture depends on a durable JobStateStore, but does not def
 
 Orchestration decides *when* publication happens: once per job, after every required Work Unit has an accepted Attempt and the required job-level validation has succeeded. It does not define *how* output becomes visible.
 
-- Generic file/dataset output is published by the Generic Publisher. Its staging layout, output manifest, and visibility-commit protocol are defined only by ADR-0017.
+- Generic file/dataset output is published by the Generic Publisher. Its staging layout, output manifest, and publication modes are defined only by ADR-0017. Object placement during publication is admitted under the same resource budgets as any other I/O (§8).
 - Table-format output is committed by the TableFormatAdapter through the table's native protocol (ADR-0015). The Generic Publisher must not bypass snapshot or catalog transaction semantics.
 - Publication intent and outcome are recorded through the JobStateStore (ADR-0013).
 

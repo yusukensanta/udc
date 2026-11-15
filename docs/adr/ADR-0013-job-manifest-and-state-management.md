@@ -67,7 +67,7 @@ Resolved credentials and secret values must never be persisted in a manifest. Pe
 
 A plan is immutable after execution begins. It contains the canonical plan digest and references to one or more plan fragments. Large plans must be pageable or chunked; storing millions of Work Unit descriptors in one JSON document or loading them all into RAM is prohibited.
 
-Plan fragments are immutable and content-addressed or versioned. The job record tracks the expected fragment set or an explicit discovery-complete marker. The plan digest covers normalized job intent, relevant source identity, schema mapping, the selected validation levels with the normalization rules version and normalization policy (ADR-0006), adapter capability versions, and work-unit descriptors. It must exclude secrets and non-deterministic runtime details such as worker assignment.
+Plan fragments are immutable and content-addressed or versioned. The job record tracks the expected fragment set or an explicit discovery-complete marker. The plan digest covers normalized job intent, relevant source identity, schema mapping, the selected validation levels with the normalization rules version and normalization policy (ADR-0006), the publication target and mode (ADR-0017), adapter capability versions, and work-unit descriptors. It must exclude secrets and non-deterministic runtime details such as worker assignment.
 
 If source discovery is incremental, the job remains in PLANNING until discovery completes or the selected execution policy explicitly supports streaming discovery concurrently with processing. The MVP should prefer complete planning for deterministic output ownership unless memory/cardinality tests demonstrate that incremental plan execution is necessary.
 
@@ -102,7 +102,7 @@ Each attempt writes to an isolated staging namespace or deterministic idempotent
 
 ### 5.5 PublicationRecord
 
-Contains publication ID, job ID, publication state, destination-specific commit reference, expected output manifest digest, timestamps, and failure/reconciliation details. Publication state is separate from Work Unit completion: all units may be complete while the job is not yet published.
+Contains publication ID, job ID, publication mode, publication state, the completion marker or publication reference that identifies the commit, expected output manifest digest, timestamps, and failure/reconciliation details. In Promotion mode the record also states whether the destination is unchanged, partially promoted, or committed (ADR-0017). Publication state is separate from Work Unit completion: all units may be complete while the job is not yet published.
 
 ### 5.6 ExecutionGenerationRecord
 
@@ -235,7 +235,7 @@ The job then follows the normal state machine. Work already backed by durable ev
 - COMPLETED Work Units are not re-executed.
 - New Attempts get new attempt IDs and staging namespaces. Attempt numbers continue across generations; the retry budget of ADR-0008 starts fresh in each generation.
 - Job-level validation evidence is reused only if it covers exactly the current accepted output set; otherwise it is recomputed.
-- Publication always begins by reconciling the publication reference (ADR-0017). If a commit from an earlier generation is found applied, the job records SUCCEEDED without committing again.
+- Publication always begins by reconciling the destination as ADR-0017 defines for the publication mode: the completion marker and the placed objects in Promotion mode, the publication reference in Reference mode. If a commit from an earlier generation is found applied, the job records SUCCEEDED without committing again.
 
 ### 9.6 What resume does not cover
 
@@ -276,7 +276,7 @@ The implementation may normalize entities into SQLite tables or use journaled re
 - Treat manifest and plan files as potentially sensitive metadata; apply least-privilege permissions and encryption at rest where available.
 - Define retention/cleanup policies for successful jobs, failed attempts, staged outputs, and validation artifacts.
 - Cleanup must be reference-aware and conservative: never delete an artifact referenced by an accepted Work Unit or published job.
-- Abandoning a job that failed during PUBLISHING must reconcile the publication reference first (ADR-0017); objects referenced by a committed output manifest are never deleted as staging leftovers.
+- Abandoning a job that failed during PUBLISHING must reconcile the publication first (ADR-0017). Objects of a committed publication are never deleted. In Promotion mode, abandoning a publication that is still in progress withdraws the objects it placed, under the rules of ADR-0017.
 - A failed or cancelled job can be resumed only while its accepted outputs are retained; the retention period is therefore also the resume window.
 - Persist enough sanitized context to diagnose failures without retaining source data unnecessarily.
 
@@ -327,7 +327,7 @@ Build a crash-recovery test harness that terminates execution after each boundar
 
 Verify recovery is idempotent, legal transitions are enforced, stale attempts cannot be accepted, completed Work Units are not rewritten, and published data is not exposed twice or incorrectly marked failed. Also test manifest corruption, incompatible schema versions, disk full, and concurrent state transitions.
 
-Test explicit resume: resume after FAILED and after CANCELLED; rejection when a source object or an accepted output object changed; rejection for an unsupported descriptor version; no re-execution of COMPLETED Work Units; a fresh retry budget in the new generation; and resume of a job that failed during PUBLISHING, with the commit both applied and not applied.
+Test explicit resume: resume after FAILED and after CANCELLED; rejection when a source object or an accepted output object changed; rejection for an unsupported descriptor version; no re-execution of COMPLETED Work Units; a fresh retry budget in the new generation; and resume of a job that failed during PUBLISHING, with the commit both applied and not applied, and with a promotion that placed only some of its objects.
 
 ## 16. Ownership boundary
 

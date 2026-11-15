@@ -50,7 +50,7 @@ Each concern has one owner. The table states what the concern owns, what it must
 | Observability | Instrumentation, cardinality and redaction rules, and export | The job state machine | ADR-0010 |
 | Orchestration | Planning, work-unit scheduling, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, storage consistency semantics, validation semantics, or the publication protocol | ADR-0012 |
 | Job State Store | Durable Job/Plan/Work Unit/Attempt/Publication records, legal transitions, atomic acceptance, recovery, and explicit resume | Dataset payload I/O, format decoding, or table transactions | ADR-0013 |
-| Generic Publisher | File/dataset staging layout, output manifest, and visibility commit protocol | Table-native transactions, or inventing atomic rename | ADR-0017 |
+| Generic Publisher | File/dataset staging layout, output manifest, and publication modes with their guarantees | Table-native transactions, or inventing atomic rename | ADR-0017 |
 | Packaging and distribution | Distribution channels, official targets and feature set, crate and binary naming, release pipeline, and the public-release gate | Cargo feature mechanics, or persisted-state versioning | ADR-0019 |
 
 ### 3.4 Reuse mature implementations instead of reimplementing protocols
@@ -81,7 +81,7 @@ The initial deliverable should be a single deployable CLI/library with internal 
 | 0014 | File-format adapter contract, safe splits, streaming reader/writer capabilities | Job scheduling and retry/state |
 | 0015 | Table-format adapter boundary, snapshot semantics, native table commits, and plain-file-to-table operations | Generic file-output publication |
 | 0016 | Cloud identity resolution, credential source, and refresh policy | Object byte operations and CLI syntax |
-| 0017 | Generic Publisher: file/dataset staging layout, output manifest, visibility commit, reconciliation, and staging cleanup rules | Table-native transaction protocol; when publication is invoked |
+| 0017 | Generic Publisher: file/dataset staging layout, output manifest, publication modes and their guarantees, reconciliation, and staging cleanup rules | Table-native transaction protocol; when publication is invoked |
 | 0018 | Future multi-worker JobStateStore backend, leases, and distributed coordination | Logical state model and MVP local backend |
 | 0019 | Distribution channels, official binary targets and feature set, crate and binary naming, release pipeline and provenance, upgrade communication, and the public-release gate | Cargo feature mechanics, persisted-state migration, and per-concern library selection |
 
@@ -101,9 +101,10 @@ All project documents use these terms with the meaning given by the defining ADR
 | Checkpoint | A durable accepted-work boundary: a completed Work Unit | ADR-0013 |
 | JobStateStore | The interface that holds authoritative orchestration state | ADR-0013 |
 | Job manifest | The versioned persisted records held by the JobStateStore. Not the output manifest | ADR-0013 |
-| Staging | An attempt-scoped, immutable output location that is not part of the published view | ADR-0017 |
+| Staging | An attempt-scoped, immutable output location outside the destination prefix, which is not part of the published view | ADR-0017 |
 | Output manifest | The immutable list of the exact accepted output objects that one publication makes visible | ADR-0017 |
-| Publication | Making a validated output set visible, through a destination-specific reference for generic output or a native commit for a table | ADR-0017 (generic), ADR-0015 (table) |
+| Publication | Making a validated output set visible, in a publication mode for generic output or through a native commit for a table | ADR-0017 (generic), ADR-0015 (table) |
+| Publication mode | How the objects of an output manifest become visible, and the guarantee that may be claimed: Promotion mode (validated before visible, for consumers that list a prefix) or Reference mode (all or nothing, for consumers that read a publication reference) | ADR-0017 |
 | Generic Publisher | The component that executes the generic file/dataset publication protocol | ADR-0017 |
 | Validation level (L1–L5) | A named level of validation evidence | ADR-0006 |
 | Normalization rules | The published, versioned specification of the canonical form of a logical value and of when two logical values are equal. The normalization policy is a job's selection among the choices a rules version allows | ADR-0006 |

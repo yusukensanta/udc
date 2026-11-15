@@ -64,7 +64,7 @@ The CLI also reports the build's version, target, source commit, and compiled-in
 - Include a config schema/version and reject unknown critical settings rather than silently ignoring them.
 - Accept only credential references or profile selectors, never secret values, in flags and config files by default. How a reference is resolved is defined by ADR-0016.
 - Redact secret-like values from rendered plans, logs, and error messages.
-- Keep execution tuning (memory, concurrency, batch size, retry and timeout policy) distinct from data semantics (schema mapping, validation, partition and output layout policy).
+- Keep execution tuning (memory, concurrency, batch size, retry and timeout policy) distinct from data semantics (schema mapping, validation, partition and output layout policy, publication target and mode).
 
 ## 8. Effective configuration
 
@@ -91,7 +91,7 @@ Add golden tests for CLI help and config parsing; test precedence across all fou
 **Does not own:**
 - The persisted job records that store the effective configuration — ADR-0013.
 - Credential sources and their resolution order — ADR-0016.
-- The meaning of an individual setting. That belongs to the ADR for its concern, for example ADR-0006 for validation levels and ADR-0012 for resource budgets.
+- The meaning of an individual setting. That belongs to the ADR for its concern, for example ADR-0006 for validation levels, ADR-0012 for resource budgets, and ADR-0017 for the publication mode.
 - The resume contract behind `udc job resume` — ADR-0013.
 
 ## 12. Revisit conditions
@@ -104,4 +104,5 @@ Revisit after the first stable CLI release or if SDK-first use cases become domi
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
 - [ADR-0016: Cloud Authentication and Credential Resolution](ADR-0016-cloud-authentication.md)
+- [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)
 - [ADR-0019: Packaging, Release, and Distribution](ADR-0019-packaging-and-distribution.md)

@@ -48,7 +48,7 @@ Most format readers need a relatively small set of object operations. Reusing an
 
 ## 7. Validation plan
 
-Test local filesystem, S3, GCS, and Azure with sequential and ranged reads; streaming/multipart writes; large-object behavior; conditional create/replace where available; list and metadata operations; delete; and transient failures. Verify each capability the adapter reports, because staging, cleanup, and publication (ADR-0017) select their protocol from those reports. Identity paths are validated under ADR-0016.
+Test local filesystem, S3, GCS, and Azure with sequential and ranged reads; streaming/multipart writes; large-object behavior; conditional create/replace where available; provider-side copy with a no-replace condition, and the checksums reported for an object and its copy; list and metadata operations; delete; and transient failures. Verify each capability the adapter reports, because staging, cleanup, and publication (ADR-0017) select their protocol from those reports. Identity paths are validated under ADR-0016.
 
 Record provider/library versions and unsupported capabilities.
 
