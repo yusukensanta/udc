@@ -214,8 +214,8 @@ The format list below is a capability roadmap, not a claim that these formats ar
 | Apache Avro | Read and write | P1 | Phase 7 | Row-oriented serialization and schema evolution |
 | Apache ORC | Read and write | P1 | Phase 7 | Columnar analytical format |
 | Apache Arrow IPC / Feather | Read and write | P1 | Phase 7 | Arrow-native interchange and file representation |
-| Lance File | Evaluate read/write | P2 | Not scheduled | Distinct from Lance Table; library and feature coverage must be verified |
-| Vortex | Evaluate read/write | P2 | Not scheduled | Evolving columnar ecosystem; maturity and feature coverage require validation |
+| Lance File | Evaluate read/write | P2 | Not scheduled | Distinct from Lance Table. Existing engines read and write Lance mainly as a dataset with table semantics; conversion into it is already served |
+| Vortex | Evaluate read/write | P2 | Not scheduled | File format declared stable from release 0.36.0. Already read and written by DuckDB, DataFusion, Spark, and Polars, so an adapter is justified only by demand for the job layer on this format |
 
 UDC support is defined by the capabilities implemented and tested in its adapter—not by the format's inclusion in this table. Each adapter must report its actual inspection, split, read, write, and option capabilities. See [ADR-0014: File Format Adapter Contract](adr/ADR-0014-file-format-adapter-contract.md).
 
@@ -558,7 +558,7 @@ The MVP should demonstrate:
 | DataFusion / DuckDB as mandatory runtime | Not selected; evaluate via ADR-0004 POC |
 | Spark integration | Deferred |
 | Avro / ORC / Arrow IPC | Deferred from initial MVP |
-| Lance File / Vortex | Deferred pending ecosystem and adapter evaluation |
+| Lance File / Vortex | Deferred; decided by demand for the job layer on these formats, since conversion into them is already served |
 | Plain-file compatibility check and dataset-to-snapshot validation for Iceberg | Deferred (Phase 5) |
 | Validated ingestion of plain files into an Iceberg table | Deferred (Phase 6) |
 | Metadata-only registration or translation of existing files | Not planned; provided by the table formats' own tooling |

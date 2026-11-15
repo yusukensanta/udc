@@ -15,9 +15,9 @@ Selecting a query engine as a mandatory core dependency before measuring this di
 
 1. Correctness and semantic fidelity across formats.
 2. Bounded-memory streaming and backpressure.
-3. Throughput and CPU efficiency for conversion-only workloads.
+3. Throughput and CPU efficiency for conversion-only workloads, compared with the reference configuration of PRD §13.3.
 4. Projection/filter pushdown where the source supports it.
-5. Coverage of required formats, including Parquet, CSV, JSON, Avro, ORC, Arrow IPC, Lance, and Vortex as they mature.
+5. Coverage of the MVP formats: Parquet, CSV, and JSON. Avro, ORC, and Arrow IPC must remain addable later. Lance and Vortex are not selection criteria (§5.1).
 6. Cloud object storage support and range-read behavior.
 7. Ability to express optional transformations.
 8. Startup time, binary size, dependency footprint, and build complexity.
@@ -44,6 +44,19 @@ No engine is selected as the universal execution backend by this ADR.
 ## 5. Rationale
 
 The product's primary responsibility is reliable conversion and migration, not general-purpose SQL analytics. A path such as `reader -> Arrow RecordBatch stream -> writer` can satisfy a pure conversion without a query planner. An engine becomes valuable when UDC needs expressions, filter/projection pushdown, joins, or a richer optimizer. These needs should be measured rather than assumed.
+
+### 5.1 Why Lance and Vortex are not selection criteria
+
+An earlier version of this ADR listed coverage of Lance and Vortex among the drivers. A check of the ecosystem in November 2026 shows that they do not separate the candidates and do not belong to what UDC competes on.
+
+- **Both engine candidates already reach both formats.** DuckDB reads and writes Vortex and Lance through core extensions: Vortex since January 2026, and Lance since DuckDB 1.5.1 in March 2026. Both projects also publish DataFusion integrations.
+- **The native path reaches them as well.** Both formats are implemented in Rust and exchange Arrow data, so a UDC adapter can be built on the format's own library under ADR-0014, whichever backend is selected.
+- **Conversion into them is already served.** Existing tools write either format in one statement, and the Lance library converts from Parquet directly. Adding them to UDC is coverage, which the PRD does not treat as differentiation ([PRD §2.5](../PRD.md#25-existing-tools-and-where-udc-fits)).
+- **Maturity no longer argues for waiting on the engine.** Vortex declares its file format stable from release 0.36.0 and is an incubation-stage project of LF AI & Data. Lance states that a dataset written with a stable storage version stays readable by later releases.
+
+Two points remain for the day an adapter is proposed. Existing engines handle Lance mainly as a dataset with table semantics, which falls under ADR-0015 and not under a file-format adapter. And the DuckDB Vortex extension is published for Linux and macOS only, so reaching Vortex through that extension would not cover the Windows target of ADR-0019; an adapter built on the Rust library is not bound by that.
+
+Both formats therefore stay unscheduled in the PRD. They are decided by demand for the job layer on those formats, not by this ADR.
 
 ## 6. Trade-offs and consequences
 
@@ -74,7 +87,7 @@ The decision is validated by a focused proof of concept. Use the same input data
 - Projection/filter pushdown actually performed.
 - Correctness under nulls, decimals, timestamps, nested values, and schema evolution.
 - Failure propagation, cancellation, and retry boundaries.
-- Format support quality and maintenance cost.
+- Format support quality and maintenance cost, for the formats in driver 5.
 
 ### 7.3 Acceptance gates
 
@@ -106,11 +119,20 @@ The comparison with existing tools in [PRD §2.5](../PRD.md#25-existing-tools-an
 
 Finalize this ADR after the POC and before introducing an execution engine as a mandatory dependency. Reopen it when a new format integration, workload, or engine release materially changes the trade-offs.
 
-## 10. Related ADRs
+## 10. References
+
+- [DuckDB: announcing Vortex support](https://duckdb.org/2026/01/23/duckdb-vortex-extension.html) and [Vortex extension](https://duckdb.org/docs/current/core_extensions/vortex)
+- [DuckDB 1.5.1 announcement](https://duckdb.org/2026/03/23/announcing-duckdb-151) and [Lance extension](https://duckdb.org/docs/current/core_extensions/lance)
+- [Vortex](https://github.com/vortex-data/vortex)
+- [Lance](https://github.com/lance-format/lance) and [lance-datafusion](https://docs.rs/crate/lance-datafusion/latest)
+
+## 11. Related ADRs
 
 - [ADR-0003: Canonical Data Model and Schema Compatibility](ADR-0003-canonical-data-model.md)
 - [ADR-0007: Async Runtime and Concurrency Control](ADR-0007-async-runtime-and-concurrency.md)
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
 - [ADR-0014: File Format Adapter Contract](ADR-0014-file-format-adapter-contract.md)
+- [ADR-0015: Table Format Integration Boundary](ADR-0015-table-format-integration-boundary.md)
 - [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)
+- [ADR-0019: Packaging, Release, and Distribution](ADR-0019-packaging-and-distribution.md)
