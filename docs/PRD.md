@@ -778,9 +778,11 @@ The roadmap is capability-driven, not strictly time-driven. Phases identify sequ
 | Phase 5 | Read-only Iceberg: metadata inspection, compatibility check of plain files before registration, and dataset-to-snapshot validation |
 | Phase 6 | Validated ingestion of plain files into an Iceberg table by append commit |
 | Phase 7 | Avro / ORC / Arrow IPC and additional format coverage |
-| Phase 8 | Table-format rewrites, distributed execution, SDKs, and external integrations as independently validated capabilities |
+| Phase 8 | Rewrite of an existing Iceberg table: data-file rewrite with snapshot pinning, delete handling, conflict detection, and native commit |
 
 Phases 0–1 build conversion, which existing tools already provide (§2.5). The job layer that distinguishes UDC arrives in Phases 2–3. The evidence gate at the end of Phase 0 exists so that this investment is checked before it is made. After the MVP, the table path (Phases 5–6) is sequenced ahead of additional file formats (Phase 7), because more formats repeat what existing tools provide and the table path does not.
+
+Distributed execution, SDKs, and integrations with external systems are not roadmap phases. They are future considerations (§14) and are scheduled only when a concrete workload or the adoption evidence of §13.3 calls for them.
 
 The MVP defined in §8 corresponds to Phases 0–4; Azure's inclusion in the MVP release remains gated on tested support (§8.2). This is a proposed sequence and may change as implementation evidence is gathered. The MVP remains single-node; bounded resource use and recovery are MVP requirements, not late-stage scale-out features. See [ADR-0012](adr/ADR-0012-scalable-data-processing.md) and [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md).
 
@@ -788,15 +790,23 @@ The MVP defined in §8 corresponds to Phases 0–4; Azure's inclusion in the MVP
 
 ### 13.1 Technical metrics
 
+The first group measures the job layer, which is what UDC is positioned on (§2.5). The second group measures prerequisites and coverage; growth in it is not by itself success.
+
+Job layer:
+
+- Fault detection by each validation level on the injected fault classes of ADR-0006, and the number of false passes, which must be zero.
+- Cost of each validation level relative to the same conversion without validation.
+- Share of incompatible schema mappings and unsupported capabilities reported at planning time, before any data is written.
+- Share of interrupted jobs that resume to completion without re-running completed work units.
+- Publication correctness in the failure-injection suite: no unvalidated object observed at a destination, and every ambiguous outcome reconciled.
+- Retry isolation: no stale or partial output accepted.
+
+Prerequisites and coverage:
+
+- Peak resident memory and maximum in-flight bytes relative to the configured budget.
+- Conversion throughput under a documented workload and environment, stated next to the reference configuration (§13.3).
 - Number of implemented and tested source/target format combinations.
 - Number of storage providers with passing integration tests.
-- Conversion throughput under a documented workload and environment.
-- Peak resident memory and maximum in-flight bytes.
-- Validation result coverage and false-assurance prevention tests.
-- Cost of each validation level relative to the same conversion without validation.
-- Successful job completion and restart-recovery rates.
-- Retry isolation and publication-reconciliation correctness.
-- Unsupported capability detection accuracy.
 
 ### 13.2 OSS adoption metrics
 
@@ -868,7 +878,7 @@ No cloud provider, compute service, orchestration platform, API, UI, or distribu
 
 ### 14.2 Additional execution and integration modes
 
-Potential future evaluations include remote workers, alternative execution backends, SDK-first integrations, and additional catalog/table-format adapters. These must be justified by concrete workloads and must preserve the ownership boundaries in the ADRs.
+Potential future evaluations include distributed execution with remote workers, alternative execution backends, language SDKs and SDK-first integrations, integrations with external orchestration or catalog systems, and additional catalog/table-format adapters. None of them has a roadmap phase. These must be justified by concrete workloads and must preserve the ownership boundaries in the ADRs.
 
 ## 15. Out of Scope for MVP
 
