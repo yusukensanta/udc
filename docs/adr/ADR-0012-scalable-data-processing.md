@@ -160,6 +160,8 @@ A Worker executes one attempt:
 
 `read -> decode -> transform (optional) -> encode -> stage -> validate`
 
+The validate step includes reading the staged output back where ADR-0006 requires it. That read is admitted under the same resource budgets as any other I/O (§8).
+
 A worker should be stateless between attempts. It receives a Work Unit descriptor, a resource budget/lease, and a staging destination. It reports structured progress and outcome.
 
 Worker code must not independently decide global retries or publish a whole job. The Scheduler owns retry scheduling, and publication is invoked only as described in §6.5.

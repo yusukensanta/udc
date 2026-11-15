@@ -99,6 +99,8 @@ Mappings classified Unsupported or Unknown are rejected during planning and neve
 
 **Text sources.** For formats that do not carry their own types, such as CSV and JSON, the source logical value is the value the reader produces under the declared or resolved schema. Validation does not cover the interpretation of text as a typed value. That interpretation is governed by the mapping plan (ADR-0003) and the adapter contract (ADR-0014).
 
+**Text targets.** The same holds on the target side: read-back of a text target yields the value the reader produces under the target schema. A writer must therefore render each value so that it reads back to the same logical value. Where the format cannot represent a value at all, such as NaN in JSON, the mapping is classified under ADR-0003 and is never passed silently.
+
 ### 4.4 Requirements for the logical fingerprint (L4)
 
 L4 is the value-level check that must run inside the streaming pipeline.

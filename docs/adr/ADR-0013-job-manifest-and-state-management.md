@@ -67,7 +67,7 @@ Resolved credentials and secret values must never be persisted in a manifest. Pe
 
 A plan is immutable after execution begins. It contains the canonical plan digest and references to one or more plan fragments. Large plans must be pageable or chunked; storing millions of Work Unit descriptors in one JSON document or loading them all into RAM is prohibited.
 
-Plan fragments are immutable and content-addressed or versioned. The job record tracks the expected fragment set or an explicit discovery-complete marker. The plan digest covers normalized job intent, relevant source identity, schema mapping, adapter capability versions, and work-unit descriptors. It must exclude secrets and non-deterministic runtime details such as worker assignment.
+Plan fragments are immutable and content-addressed or versioned. The job record tracks the expected fragment set or an explicit discovery-complete marker. The plan digest covers normalized job intent, relevant source identity, schema mapping, the selected validation levels with the normalization rules version and normalization policy (ADR-0006), adapter capability versions, and work-unit descriptors. It must exclude secrets and non-deterministic runtime details such as worker assignment.
 
 If source discovery is incremental, the job remains in PLANNING until discovery completes or the selected execution policy explicitly supports streaming discovery concurrently with processing. The MVP should prefer complete planning for deterministic output ownership unless memory/cardinality tests demonstrate that incremental plan execution is necessary.
 
@@ -216,7 +216,7 @@ Before a job is recorded FAILED or CANCELLED, every Work Unit is brought to a te
 Resume is an explicit operation (`udc job resume`, ADR-0009). It is never an automatic side effect of starting another job. It is accepted only if all of the following hold; otherwise it is rejected with the failed precondition and the job stays terminal.
 
 1. The job is FAILED or CANCELLED and its plan was sealed. A SUCCEEDED job cannot be resumed, and a job that ended during PLANNING has no sealed plan to resume and must be created again.
-2. The persisted manifest, plan, and descriptor versions are supported by the running UDC version (§13).
+2. The persisted manifest, plan, and descriptor versions are supported by the running UDC version, and the running version implements the normalization rules version pinned by the plan (§13).
 3. The job specification digest and plan digest are unchanged. Only execution-tuning settings may be overridden; data-semantics settings may not (ADR-0009).
 4. Source identity still matches the plan for every Work Unit, including completed ones, under the job's source consistency policy. A changed source object invalidates the plan.
 5. Every output object referenced by an accepted Attempt still exists and matches its recorded identity.
@@ -285,6 +285,8 @@ The implementation may normalize entities into SQLite tables or use journaled re
 Every persisted manifest has a schema version. Readers must either migrate supported old versions explicitly or reject them with a clear error. Migration must be transactional or create a verified new generation; never partially rewrite a manifest in place.
 
 Plan and Work Unit descriptor versions must also be pinned because a new UDC version may interpret splitting, schema mapping, or output ownership differently. A resumed job must either use a compatible executor or fail with an explicit compatibility error.
+
+The normalization rules version is pinned by the plan for the same reason. Validation evidence recorded under different rules versions cannot be combined (ADR-0006), so a job never mixes them across Work Units or execution generations.
 
 ## 14. MVP scope boundary
 

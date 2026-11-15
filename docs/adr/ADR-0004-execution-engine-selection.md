@@ -84,6 +84,13 @@ The decision is validated by a focused proof of concept. Use the same input data
 - The winner may be workload-specific; UDC must not force one backend where a simpler native path is superior.
 - Results, benchmark fixtures, and versions must be committed for reproducibility.
 
+### 7.4 Relation to the evidence gates
+
+The comparison with existing tools in [PRD §2.5](../PRD.md#25-existing-tools-and-where-udc-fits) does not change this decision, but it changes what the proof of concept has to show. UDC's distinct part is the job layer (ADR-0012, ADR-0013, ADR-0017), and that layer does not depend on which backend moves the batches.
+
+- The proof of concept also measures each candidate against the reference configuration of [PRD §13.3](../PRD.md#133-value-hypotheses-and-evidence-gates), which supplies the evidence for hypothesis H3.
+- If the gates in PRD §13.3 lead to narrowing UDC to the job layer over an existing engine, that engine becomes the reference path and this ADR is revised before implementation continues.
+
 ## 8. Ownership boundary
 
 **Owns:** what an execution backend must provide, which backends are candidates, and the evidence used to select them.
@@ -106,3 +113,4 @@ Finalize this ADR after the POC and before introducing an execution engine as a 
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
 - [ADR-0014: File Format Adapter Contract](ADR-0014-file-format-adapter-contract.md)
+- [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)

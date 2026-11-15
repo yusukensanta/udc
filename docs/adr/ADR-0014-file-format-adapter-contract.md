@@ -95,7 +95,7 @@ Writer contract requirements:
 - never publish the job destination;
 - surface whether writer close means bytes are durably accepted by the Storage adapter or only flushed to an intermediate buffer.
 
-Final visibility is owned by the Generic Publisher under ADR-0017.
+Final visibility is owned by the Generic Publisher under ADR-0017, or by the table-native commit under ADR-0015 when the destination is a table.
 
 ### 5.6 Schema mapping boundary
 
