@@ -250,7 +250,9 @@ Authentication is a separate concern. UDC should prefer native credential chains
 
 Catalog integration is distinct from storage and table-format integration. A catalog adapter is responsible for discovery, registration, and catalog-specific operations; it does not own job lifecycle or file conversion.
 
-Glue, REST Catalog, and Lance Namespace are examples of ecosystems to evaluate. No catalog implementation or complete catalog-migration capability is committed by this PRD version.
+Glue, REST Catalog, and Lance Namespace are examples of ecosystems to evaluate. No catalog implementation is part of the MVP.
+
+Validated ingestion into an Iceberg table (Phase 6, §5.2) requires one catalog integration. Which catalog is supported first, and the catalog adapter contract, must be decided in a dedicated ADR before that phase starts. Complete catalog migration is not planned.
 
 ## 6. Functional Requirements
 
