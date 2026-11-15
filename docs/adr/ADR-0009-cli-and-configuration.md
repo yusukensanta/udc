@@ -48,13 +48,28 @@ Reproducibility does not come from ranking the file above the environment. It co
 
 ## 6. Initial command concepts
 
-- `udc inspect`
-- `udc convert`
-- `udc validate`
+- `udc inspect` — report the schema, metadata, and adapter capabilities of a dataset. It reads and never writes.
+- `udc convert` — plan and run a conversion job: schema classification, conversion, the validation levels the job selects, and publication. A plan-only form stops after planning and prints the schema compatibility classification and the effective plan, without reading row data for conversion or writing output.
+- `udc validate` — compare two datasets that already exist; see §6.1.
 - `udc job status`
 - `udc job resume` — explicitly resume a failed or cancelled job; the contract is defined by ADR-0013 §9.
+- `udc job abandon` — give up a failed or cancelled job: reconcile or withdraw its publication and release its retained staging, as ADR-0013 and ADR-0017 define.
 
 The CLI also reports the build's version, target, source commit, and compiled-in adapters, as ADR-0019 requires. Exact flags are settled with the first implementation.
+
+### 6.1 `udc validate`
+
+`udc validate` compares a source dataset and a target dataset at the selected validation levels, under a declared schema mapping and the normalization rules of ADR-0006. It converts nothing and publishes nothing, and it reads both sides without writing to either.
+
+It is a separate command, not a step of `udc convert`, for three reasons. A conversion performed by another tool can be checked with it. It is the command behind the option of narrowing UDC to validation ([PRD §13.3](../PRD.md#133-value-hypotheses-and-evidence-gates)). And dataset-to-snapshot validation (ADR-0015) is the same comparison with a table snapshot as the target.
+
+- It runs as a job, so that it is bounded in memory and resumable like a conversion. The job is validation-only: it has no staged output and no publication step (ADR-0013).
+- The two sides need not share a file layout. Evidence is computed for each side and compared for the whole dataset, and for each partition where both sides declare the same partitioning. A mismatch is therefore narrowed to fields and, at best, to partitions.
+- The schema mapping is declared by the user; the default is the identity mapping. The result states its coverage as ADR-0006 requires. UDC does not know how another tool coerced values: a field whose mapping is lossy is compared after UDC's own coercion of the source, and a different coercion by the other tool appears as a mismatch.
+- The validation performed inside `udc convert` and by `udc validate` use the same rules and produce the same evidence records.
+- Exit status separates three outcomes: evidence agrees at every selected level; a mismatch (the Validation category of ADR-0008); and any other error. `udc convert` uses the same status for a job that fails on a validation mismatch.
+
+The plain-file-to-table operations of ADR-0015 §9 use these commands when they are built: the compatibility check before registration is the plan-only form of a job whose target is a table, dataset-to-snapshot validation is `udc validate` with a table snapshot as the target, and validated ingestion is `udc convert` with a table target.
 
 ## 7. Configuration rules
 
@@ -82,7 +97,7 @@ The CLI also reports the build's version, target, source commit, and compiled-in
 
 ## 10. Validation plan
 
-Add golden tests for CLI help and config parsing; test precedence across all four sources, schema-version handling, secret redaction, malformed values, and deterministic rendering of effective job plans. Test that a resumed job ignores a changed environment for data-semantics settings and accepts an execution-tuning override.
+Add golden tests for CLI help and config parsing; test precedence across all four sources, schema-version handling, secret redaction, malformed values, and deterministic rendering of effective job plans. Test that a resumed job ignores a changed environment for data-semantics settings and accepts an execution-tuning override. Test the three exit statuses of `udc validate`, and that it leaves both datasets unchanged.
 
 ## 11. Ownership boundary
 
@@ -93,6 +108,8 @@ Add golden tests for CLI help and config parsing; test precedence across all fou
 - Credential sources and their resolution order — ADR-0016.
 - The meaning of an individual setting. That belongs to the ADR for its concern, for example ADR-0006 for validation levels, ADR-0012 for resource budgets, and ADR-0017 for the publication mode.
 - The resume contract behind `udc job resume` — ADR-0013.
+- What `udc validate` compares and what a result may claim — ADR-0006. How a mismatch is classified — ADR-0008.
+- What abandoning a job does to its publication and staging — ADR-0013 and ADR-0017.
 
 ## 12. Revisit conditions
 
@@ -101,8 +118,10 @@ Revisit after the first stable CLI release or if SDK-first use cases become domi
 ## 13. Related ADRs
 
 - [ADR-0006: Validation Semantics](ADR-0006-validation-semantics.md)
+- [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
+- [ADR-0015: Table Format Integration Boundary](ADR-0015-table-format-integration-boundary.md)
 - [ADR-0016: Cloud Authentication and Credential Resolution](ADR-0016-cloud-authentication.md)
 - [ADR-0017: Output Publication Protocol](ADR-0017-output-publication-protocol.md)
 - [ADR-0019: Packaging, Release, and Distribution](ADR-0019-packaging-and-distribution.md)

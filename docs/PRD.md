@@ -402,11 +402,12 @@ There is no universal atomic directory rename guarantee across object stores. Ge
 UDC must provide a CLI for local inspection, conversion, validation, and job operations.
 
 Initial command concepts:
-- `udc inspect`
-- `udc convert`
-- `udc validate`
+- `udc inspect` — schema, metadata, and capabilities of a dataset.
+- `udc convert` — a conversion job, with a plan-only form that prints the schema compatibility classification before any data is written.
+- `udc validate` — compare two existing datasets under the same rules a conversion job uses, without converting or publishing. This also checks a conversion performed by another tool.
 - `udc job status`
 - `udc job resume`
+- `udc job abandon`
 
 Configuration is resolved from CLI flags, then environment variables, then the configuration file, then defaults. Exact flags, file format, and compatibility policy remain subject to [ADR-0009](adr/ADR-0009-cli-and-configuration.md).
 
@@ -546,6 +547,7 @@ The MVP should demonstrate:
 | Streaming and bounded memory | Required |
 | Bounded concurrency and backpressure | Required |
 | CLI | Required |
+| Standalone validation of two existing datasets (`udc validate`) at the MVP validation levels | Required |
 | Durable local Job State Store | Required |
 | Durable work-unit completion and process-restart resume | Required |
 | Explicit resume of a failed or cancelled job over its sealed plan | Required |
