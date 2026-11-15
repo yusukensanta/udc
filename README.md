@@ -31,11 +31,21 @@ These describe the intended product, not current capabilities.
 
 ## MVP direction
 
-The initial MVP is a single-node CLI and library for local and cross-cloud file conversion of Parquet, CSV, and JSON. It uses a streaming reader-to-writer pipeline with Apache Arrow as the in-memory interchange layer, plus schema and row-count validation, restart recovery, and safe publication of validated output. The execution backend remains under evaluation; see [ADR-0004](docs/adr/ADR-0004-execution-engine-selection.md).
+The initial MVP is a single-node CLI and library for local and cross-cloud file conversion of Parquet, CSV, and JSON. It uses a streaming reader-to-writer pipeline with Apache Arrow as the in-memory interchange layer, plus schema, row-count, and logical-fingerprint validation under published normalization rules, restart recovery, and safe publication of validated output. The execution backend remains under evaluation; see [ADR-0004](docs/adr/ADR-0004-execution-engine-selection.md).
 
 UDC is designed for datasets larger than process memory: bounded streaming, byte-aware backpressure, partitionable work units, independent I/O and CPU limits, and recoverable staging are architectural requirements. The work plan is designed to preserve a future scale-out path.
 
 See the [PRD](docs/PRD.md) for scope, requirements, acceptance criteria, proposed architecture, and roadmap.
+
+## Relation to existing tools
+
+Format conversion and access to these storage systems are already well served by tools such as DuckDB, clickhouse-local, and rclone. UDC does not aim to compete on those.
+
+Its intended contribution is the job layer around a conversion: schema compatibility classified before data moves, validation evidence under published rules, resume from completed work, and publication of validated output only. It targets datasets stored as plain files rather than in a table format, and delivers this as a single binary.
+
+After the MVP, the same job layer is planned for the path from plain files to an Iceberg table: checking files against a table schema before they are registered, validating a table against the files it came from, and loading files that need a rewrite with validation before the commit. Registering or translating existing files without reading them is left to the table formats' own tooling.
+
+Whether there is enough demand for that combination has not been established. The comparison is in [PRD §2.5](docs/PRD.md#25-existing-tools-and-where-udc-fits), and the way the question will be tested is in [PRD §13.3](docs/PRD.md#133-value-hypotheses-and-evidence-gates).
 
 ## Architecture decisions
 
