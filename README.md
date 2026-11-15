@@ -41,7 +41,7 @@ See the [PRD](docs/PRD.md) for scope, requirements, acceptance criteria, propose
 
 ## Relation to existing tools
 
-Format conversion and access to these storage systems are already well served by tools such as DuckDB, clickhouse-local, and rclone. UDC does not aim to compete on those.
+Format conversion and access to these storage systems are already well served by tools such as DuckDB, clickhouse-local, and rclone. UDC does not aim to compete on those, and it does not offer a plain copy of objects between stores: a job may read from one provider and write to another, but it always converts and checks the data.
 
 Its intended contribution is the job layer around a conversion: schema compatibility classified before data moves, validation evidence under published rules, resume from completed work, and publication of validated output only. It targets datasets stored as plain files rather than in a table format, and delivers this as a single binary.
 

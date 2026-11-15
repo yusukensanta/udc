@@ -29,7 +29,7 @@ UDC aims to provide a unified product experience for:
 - Running recoverable jobs with bounded resource consumption and controlled output publication.
 - Inspecting source datasets and their schemas.
 - Converting between supported file formats.
-- Moving data across supported object-storage providers.
+- Reading from one supported storage provider and writing to another within a conversion job.
 - Integrating with table formats through their native metadata and transaction protocols.
 
 UDC will reuse mature format, storage, table-protocol, and execution libraries where practical. It will not reimplement an entire query engine or table-format protocol merely to provide a common user experience.
@@ -109,6 +109,8 @@ Three consequences follow.
 2. **The realistic alternative is a wrapped engine, not a bare one.** An existing engine driven by a script that adds a per-attempt staging prefix, a row-count check, a ledger of completed units, and a completion marker can reproduce much of that job layer. UDC therefore saves integration work; it does not make possible something that was impossible. §13.3 uses this configuration as the reference to measure against.
 3. **The failures are documented; the demand is not.** The failure modes in §2.4 are well supported, most strongly non-atomic job commit on object stores. No direct evidence was found that practitioners want one integrated tool for them. That is an absence of evidence, not evidence of absence. It is carried as an open risk (§16) and tested through the gates in §13.3.
 
+One boundary follows from the first consequence. UDC does not offer a byte-for-byte copy or synchronization of objects between stores. That is served by tools such as rclone and by the providers' own transfer services. Cross-cloud operation is a property of a conversion job, whose source and destination may be on different providers; it is not a product of its own.
+
 The position is also moving. Engines fail loudly more often than they used to, which narrows the schema-safety gap, and adoption of table formats reduces the number of users who publish plain files. The plain-file-to-table operations in §5.2 are the response to the second trend: they apply the same job layer where the destination is a table.
 
 References for this section:
@@ -149,7 +151,7 @@ Typical use cases:
 - Parquet to CSV, JSON, or another supported columnar format.
 - Compression or physical-layout changes.
 - Partition-preserving dataset conversion.
-- Cross-cloud object-storage migration.
+- Conversion whose source and destination are on different storage providers.
 - Schema compatibility checks before a large transfer.
 
 ### 4.2 Data Platform Engineer
@@ -247,6 +249,8 @@ A table-format feature is supported only when its adapter can preserve the relev
 | Azure | Azure Blob Storage | P0 | Phase 4 | Target capability; release inclusion depends on tested capability coverage |
 
 Storage adapters expose object operations and provider-specific capabilities. They must not assume filesystem rename semantics or universal atomic directory publication. The storage abstraction is described in [ADR-0005](adr/ADR-0005-storage-abstraction.md).
+
+A storage provider is supported as a source or destination of conversion jobs. Copying or synchronizing objects between providers without converting them is not a UDC capability (§2.5).
 
 Authentication is a separate concern. UDC should prefer native credential chains, short-lived credentials, and workload identity. Credential references—not resolved secrets—may be persisted in job metadata. The proposed identity and refresh boundary is described in [ADR-0016](adr/ADR-0016-cloud-authentication.md).
 
@@ -554,6 +558,7 @@ The MVP should demonstrate:
 | Plain-file compatibility check and dataset-to-snapshot validation for Iceberg | Deferred (Phase 5) |
 | Validated ingestion of plain files into an Iceberg table | Deferred (Phase 6) |
 | Metadata-only registration or translation of existing files | Not planned; provided by the table formats' own tooling |
+| Byte-for-byte copy or synchronization of objects between stores | Not planned; provided by tools such as rclone and by provider transfer services |
 | Full Iceberg / Delta / Hudi / Lance Table migration | Deferred |
 | Mid-work-unit resume | Deferred |
 | Reuse of completed work across different plans or jobs | Deferred |
