@@ -79,7 +79,7 @@ The initial deliverable should be a single deployable CLI/library with internal 
 | 0012 | Job planning, work-unit granularity, scheduler policy, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, legal state transitions, resume, and the publication protocol |
 | 0013 | Job/Plan/Work Unit/Attempt/Publication records, execution generations, state transitions, atomicity, durability, single-node recovery, and explicit resume | Data I/O and scheduling policy; distributed backend selection |
 | 0014 | File-format adapter contract, safe splits, streaming reader/writer capabilities | Job scheduling and retry/state |
-| 0015 | Table-format adapter boundary, snapshot semantics, and native table commits | Generic file-output publication |
+| 0015 | Table-format adapter boundary, snapshot semantics, native table commits, and plain-file-to-table operations | Generic file-output publication |
 | 0016 | Cloud identity resolution, credential source, and refresh policy | Object byte operations and CLI syntax |
 | 0017 | Generic Publisher: file/dataset staging layout, output manifest, visibility commit, reconciliation, and staging cleanup rules | Table-native transaction protocol; when publication is invoked |
 | 0018 | Future multi-worker JobStateStore backend, leases, and distributed coordination | Logical state model and MVP local backend |
@@ -106,6 +106,7 @@ All project documents use these terms with the meaning given by the defining ADR
 | Publication | Making a validated output set visible, through a destination-specific reference for generic output or a native commit for a table | ADR-0017 (generic), ADR-0015 (table) |
 | Generic Publisher | The component that executes the generic file/dataset publication protocol | ADR-0017 |
 | Validation level (L1–L5) | A named level of validation evidence | ADR-0006 |
+| Normalization rules | The published, versioned specification of the canonical form of a logical value and of when two logical values are equal. The normalization policy is a job's selection among the choices a rules version allows | ADR-0006 |
 | Transfer integrity | A physical byte checksum of a stored or copied object. Not a validation level | ADR-0006 |
 | Error category | A stable class of failure with a default retry disposition | ADR-0008 |
 | Capability descriptor | An explicit, versioned statement of what an adapter or backend guarantees | ADR-0014, ADR-0015, ADR-0005, ADR-0004 |
@@ -128,7 +129,7 @@ All project documents use these terms with the meaning given by the defining ADR
 14. ADR-0006 owns the validation level names (L1–L5) and what each establishes. A physical checksum is a transfer-integrity check, not a validation level, and must not be reported as evidence of logical equivalence.
 15. ADR-0008 owns error categories and retry disposition. Other documents reference those categories instead of defining their own lists.
 16. ADR-0009 owns configuration precedence. A recovered or resumed job uses the effective configuration persisted under ADR-0013, not the current environment.
-17. ADRs carry no priority labels. Capability priority (P0–P3) and roadmap phases (Phase 0–7) are defined only in the PRD.
+17. ADRs carry no priority labels. Capability priority (P0–P3) and roadmap phases (Phase 0–8) are defined only in the PRD.
 18. ADR-0019 owns what the official binary contains, which targets are built, and crate naming. ADR-0011 owns which crates are published and how crates and Cargo features are arranged to produce the official binary.
 
 When ADRs appear to conflict, the authoritative owner in the scope map takes precedence and dependent ADRs must be amended to reference it.
