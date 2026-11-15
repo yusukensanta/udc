@@ -43,6 +43,8 @@ Format conversion and access to these storage systems are already well served by
 
 Its intended contribution is the job layer around a conversion: schema compatibility classified before data moves, validation evidence under published rules, resume from completed work, and publication of validated output only. It targets datasets stored as plain files rather than in a table format, and delivers this as a single binary.
 
+Plain files have no transaction log, so UDC does not claim an atomic commit for readers that list a prefix. Its default guarantee is narrower: nothing appears in the destination before the whole output has passed validation, and a job that fails before publication leaves the destination unchanged.
+
 After the MVP, the same job layer is planned for the path from plain files to an Iceberg table: checking files against a table schema before they are registered, validating a table against the files it came from, and loading files that need a rewrite with validation before the commit. Registering or translating existing files without reading them is left to the table formats' own tooling.
 
 Whether there is enough demand for that combination has not been established. The comparison is in [PRD §2.5](docs/PRD.md#25-existing-tools-and-where-udc-fits), and the way the question will be tested is in [PRD §13.3](docs/PRD.md#133-value-hypotheses-and-evidence-gates).
