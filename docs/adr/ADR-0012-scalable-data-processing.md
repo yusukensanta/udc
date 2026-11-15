@@ -305,7 +305,7 @@ For mutable sources, the Plan must pin object versions/ETags or state an explici
 
 ### 11.4 Work Unit failure and job outcome
 
-A Work Unit becomes FAILED when its error is not retryable or its retry budget is exhausted (ADR-0008). A job with a FAILED required Work Unit cannot proceed to job-level validation or publication.
+A Work Unit becomes FAILED when its error is not retryable, its retry budget is exhausted, or a validation mismatch repeats on its one further Attempt (ADR-0008). A job with a FAILED required Work Unit cannot proceed to job-level validation or publication.
 
 The default Scheduler policy on the first FAILED Work Unit is `fail-fast`:
 

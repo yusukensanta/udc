@@ -348,6 +348,7 @@ Requirements:
 - Target-side evidence is taken from the stored output by reading it back, not from counters held by the writer.
 - Each result states what it covers relative to the schema mapping. A field whose mapping is lossy or policy-dependent is validated after coercion, and the result says so.
 - Value-level evidence (L4) must be computable within the bounded-memory streaming model, without sorting the dataset.
+- A mismatch at a selected level prevents publication. The affected work unit is run once more from the source; a mismatch that repeats fails the job, and no setting publishes in spite of it.
 
 The level names, algorithms, normalization rules, the source of evidence, and the guarantee each result may claim are governed by [ADR-0006: Validation Semantics](adr/ADR-0006-validation-semantics.md).
 

@@ -175,7 +175,7 @@ For L4 and the normalization rules:
 - How a reader turns stored bytes or text into logical values — ADR-0014.
 - When validation runs in the job workflow, and at which scope — ADR-0012.
 - Recording validation results, and whether an Attempt is accepted because of them — ADR-0013.
-- How a validation failure is classified for retry — ADR-0008.
+- How a validation mismatch is classified and retried — ADR-0008. A mismatch at a selected level always prevents publication.
 - Table-specific checks that are not validation levels, such as the registered file-set check — ADR-0015.
 - Which validation levels a release commits to — the PRD.
 
