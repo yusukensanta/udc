@@ -1,0 +1,20 @@
+[workspace]
+resolver = "3"
+members = ["crates/udc-core", "crates/udc-cli"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+# Until the first package release, the minimum supported Rust version is the pinned toolchain (ADR-0002).
+rust-version = "1.100"
+license = "Apache-2.0"
+repository = "https://github.com/yusukensanta/udc"
+# Nothing is published before the first package release (ADR-0019 §12).
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
