@@ -41,7 +41,7 @@ Define validation as named levels rather than a single boolean. These names and 
 | L2 | Cardinality | Row or record counts, optionally per partition | Counts agree | That values agree |
 | L3 | Statistics | Null counts, min/max, and distinct estimates where available, with the provenance of each figure | The selected aggregates agree under the defined normalization | Row-level equality |
 | L4 | Logical fingerprint | Canonicalized per-column or per-row hashes of logical values | Fingerprints agree under a versioned canonical encoding, with stated collision properties | Mathematical proof of equality; byte equality |
-| L5 | Exact comparison | Logical row comparison under a declared ordering or multiset policy | Logical records agree under the declared equality and normalization policy | Physical or layout equality |
+| L5 | Exact comparison | Logical row comparison, as multisets of rows or, where declared, in row order (§4.2) | Logical records agree under the declared equality and normalization policy | Physical or layout equality |
 
 A job selects which levels to run. Each result reports the levels that actually ran; a pass at one level does not imply that another level ran.
 
@@ -78,7 +78,9 @@ Version 1 covers the logical types reachable from the formats in the first relea
 | Struct | Compared field by field under the field identity of the mapping plan (ADR-0003). Field order is not significant | None |
 | List | Element order and element count are significant | None |
 | Map | Compared as an unordered set of key–value entries | None |
-| Rows | A dataset is a multiset of rows: row order is not significant, and the number of times a row occurs is | None |
+| Rows | A dataset is a multiset of rows: row order is not significant, and the number of times a row occurs is significant | Row order may be declared significant for L5. L4 is always independent of row order |
+
+For example, a dataset with the rows A, A, B is not equal to a dataset with the rows A, B, because A occurs twice in one and once in the other. The rows B, A, A are equal to A, A, B, because only the order differs. L4 (§4.4) and L5 apply this rule in the same way, and the conformance vectors include both cases.
 
 These rules are proposals. Each must be confirmed against the adversarial fixtures in §7 before version 1 is released.
 
@@ -106,11 +108,12 @@ Mappings classified Unsupported or Unknown are rejected during planning and neve
 L4 is the value-level check that must run inside the streaming pipeline.
 
 - A **row fingerprint** is a hash over the canonical encoding of the row's mapped fields under the normalization rules version in effect.
-- Row fingerprints are combined into a dataset fingerprint by an order-independent combiner. No sort is needed, and memory use does not grow with the number of rows.
+- Row fingerprints are combined into a dataset fingerprint by a combiner that is commutative and associative. The result is therefore the same whatever the row order, the batch boundaries, the file layout and partitioning, and the order in which Work Units complete. No sort is needed, and memory use does not grow with the number of rows.
 - The combiner must be sensitive to multiplicity: a dropped row and a duplicated row must each change the result. A combiner under which duplicate rows cancel out, such as XOR, is not acceptable.
 - Fingerprints are computed per Work Unit and can be combined to partition and job scope without reading the data again.
+- The canonical encoding is defined byte for byte, including byte order and the length prefixes of variable-length and nested values, so that a fingerprint does not depend on the platform, the library version, or the batch size.
 - Per-column fingerprints are computed in addition, so that a mismatch can be narrowed to fields. They do not replace the row fingerprint, because per-column fingerprints alone do not detect values that moved between rows.
-- The hash function, its width, and the combiner are selected during implementation and recorded as an algorithm identifier. The expected probability of an accidental collision is documented with them.
+- The hash function, its width, and the combiner are selected through a prototype before L4 is implemented, and are recorded in this ADR as an algorithm identifier together with the conformance vectors. The expected probability of an accidental collision is documented with them.
 - L4 detects accidental divergence. It is not a security mechanism and does not resist data constructed deliberately to collide.
 - On a mismatch, L4 reports the scope and the fields that differ. It does not identify the rows; that requires L5.
 
@@ -162,6 +165,7 @@ For L4 and the normalization rules:
 
 - Inject faults into staged output and verify that L4 fails for each: one changed value, one dropped row, one duplicated row, and two values swapped between rows of the same column.
 - Verify that L4 passes when only row order, file layout, compression, or physical encoding differs.
+- Compute the fingerprint of one dataset with different batch sizes, partitionings, and Work Unit completion orders, on more than one platform, and verify that it is identical.
 - Reproduce the conformance vectors with an implementation of the rules that shares no code with UDC.
 - Measure the cost of L4 relative to the same conversion without validation, and confirm that its memory use does not grow with the number of rows.
 - Verify that a result for a Lossy / narrowing or Policy-dependent field states that the coercion is not covered.
