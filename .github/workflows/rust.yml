@@ -1,0 +1,71 @@
+name: rust
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "deny.toml"
+      - ".github/workflows/rust.yml"
+  pull_request:
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "deny.toml"
+      - ".github/workflows/rust.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  check:
+    name: Format, lint, test, coverage, dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # rustup reads rust-toolchain.toml and installs the pinned toolchain and its components.
+      - name: Toolchain
+        run: rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: cargo-llvm-cov@0.9.1,cargo-deny@0.20.2
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Lint
+        run: cargo clippy --workspace --all-targets --all-features --locked
+
+      # Coverage must be at least 80% of lines. A binary's main.rs is excluded: it only calls into
+      # its crate's library, which is where code and tests belong. While the workspace has no
+      # measurable lines, the gate passes and says so.
+      - name: Test with coverage
+        run: |
+          cargo llvm-cov --workspace --all-features --locked \
+            --ignore-filename-regex 'crates/[^/]+/src/main\.rs$' \
+            --json --summary-only --output-path coverage.json
+          jq '.data[0].totals.lines' coverage.json
+          jq -e '.data[0].totals.lines | if .count == 0 then ("no lines to measure yet" | debug | true) else .percent >= 80 end' coverage.json
+
+      - name: Dependencies
+        run: cargo deny --locked check

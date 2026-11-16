@@ -1,0 +1,33 @@
+# cargo-deny configuration. Dependency review rules: ADR-0011.
+
+[graph]
+all-features = true
+
+[advisories]
+# Every RustSec advisory is an error unless it is ignored here with a reason.
+ignore = []
+
+[licenses]
+# Licenses compatible with distributing UDC under Apache-2.0. Add one only after review.
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.9
+# The list is prepared ahead of the dependencies that will use it.
+unused-allowed-license = "allow"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
