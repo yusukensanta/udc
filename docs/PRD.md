@@ -7,7 +7,7 @@
 | Project | UDC |
 | Full Name | Universal Data Converter |
 | Document | Product Requirements Document |
-| Version | 0.5.0 |
+| Version | 0.5.1 |
 | Status | Draft |
 | License | Apache License 2.0 |
 | Development Model | OSS-first |
@@ -859,6 +859,15 @@ Bars. The H2 bar was confirmed on 2026-11-16, before its evidence was collected.
 - **H3:** the reference configuration exceeds the memory budget on the test dataset and UDC stays within it.
 - **H4:** L4 detects every fault class listed in the ADR-0006 validation plan, and its cost stays within a bound set before measurement.
 
+Recorded results:
+
+- **H2: supported, 2026-11-17.** Evidence: the reference configuration and its interruption tests in [`tests/benchmarks/reference-config`](../tests/benchmarks/reference-config/README.md), run with DuckDB 2.0.0 against RustFS 1.0.6. The bar is met by its second clause:
+  - A kill while DuckDB uploads a unit leaves a pending multipart upload that survives a successful re-run; the script never learns of it. Removing it needs a record of in-flight uploads and their cleanup, the equivalent of ADR-0013's attempt records and ADR-0017's staging cleanup.
+  - Four cases end in a reported success whose output does not match the source: a converted source partition replaced before the re-run, a partition from an earlier run already in the destination, two jobs writing the same destination, and a `_SUCCESS` left by a different job. Preventing them needs source identity checks (ADR-0012) and the destination preconditions, claim, and job-bound completion marker of ADR-0017.
+  - The first clause was observed as well: a kill during promotion leaves part of the output visible, without `_SUCCESS`, to readers that list the prefix. It is not counted, because UDC's Promotion mode has the same exposure while promotion runs (ADR-0017).
+  - Limits of the evidence: one local S3-compatible store, not a cloud provider; one run per scenario, and the concurrent case depends on timing; one implementation of the reference configuration, about 470 lines, which a different engineer might extend with some of these protections at the cost of more code.
+  - Consequence: Phase 0 continues as planned. None of the options for an unsupported H2 is taken.
+
 After the first release, the adoption metrics in §13.2 are read against these hypotheses: use of validation, resume, and publication counts as evidence for the job layer, and use of conversion alone does not.
 
 ## 14. Future Considerations (Non-MVP)
@@ -903,7 +912,7 @@ Potential future evaluations include distributed execution with remote workers, 
 | Risk | Mitigation |
 |---|---|
 | Existing tools already provide conversion, storage reach, and single-binary distribution (§2.5) | Do not position UDC on those; concentrate differentiation on the job layer for plain-file datasets; measure against the reference configuration (§13.3) |
-| Demand for an integrated job layer is unproven | Primarily a personal project, so demand does not gate the work. H1 and H5 are read from issues and adoption once the repository is public (§13.3); the technical gate H2 still applies at the end of Phase 0 |
+| Demand for an integrated job layer is unproven | Primarily a personal project, so demand does not gate the work. H1 and H5 are read from issues and adoption once the repository is public (§13.3); the technical gate H2 was supported on 2026-11-17 (§13.3) |
 | The gap narrows as engines fail loudly and table formats spread | Repeat the existing-tool review before each release that changes positioning; apply the job layer to table destinations through the plain-file-to-table operations (§5.2, ADR-0015) |
 | The plain-file-to-table path depends on append and commit support in a table library and on a catalog contract that has no ADR yet | Gate each operation on tested adapter capabilities; write the catalog ADR before Phase 6; report a missing capability as unsupported instead of emulating it |
 | Differentiating validation arrives too late or costs too much | Normalization rules version 1 and L4 are MVP commitments; fault detection and cost are measured (H4) |
