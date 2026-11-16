@@ -37,7 +37,7 @@ UDC's main remote data path is I/O-heavy and benefits from overlapping network o
 
 ## 6. Required design constraints
 
-These constraints govern how runtime primitives are used. Which budgets exist, their values, and the scheduling policy are defined by ADR-0012 §9.
+These constraints govern how runtime primitives are used. Which budgets exist, their values, and the scheduling policy are defined by ADR-0012 §10.
 
 - Never spawn one task per discovered object without a concurrency limit.
 - Use bounded channels for batch and work-unit flow.

@@ -70,7 +70,7 @@ Inspection returns physical schema, format metadata, row/record count and size e
 
 The adapter receives source identity and planning constraints, then returns opaque but serializable SplitDescriptors. Each descriptor contains:
 - stable format-specific split identity;
-- exact source object/version reference;
+- exact source object reference and its recorded identity (ADR-0012);
 - safe logical boundary (file, block, row group, or other native unit);
 - estimated bytes/rows if known;
 - required reader options and versioned adapter interpretation;
@@ -87,6 +87,7 @@ Reader contract requirements:
 - cancellation and early close;
 - explicit schema and projection behavior;
 - errors preserve source identity and format context;
+- every request to the source carries the recorded identity from the SplitDescriptor, through the Storage adapter, as the source consistency policy of ADR-0012 requires. A reader never issues an unconditional read of a source object;
 - no requirement to materialize an entire file or dataset;
 - report progress/bytes where the underlying reader can do so.
 

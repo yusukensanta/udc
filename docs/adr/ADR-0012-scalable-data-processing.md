@@ -76,7 +76,7 @@ A Job is the immutable user intent plus execution policy. It includes:
 
 - Job ID and configuration version.
 - Source and destination references.
-- Source identity/version information where available.
+- The required source consistency class (§8).
 - Format and table capability selections.
 - Canonical schema and mapping policy references.
 - Output layout and file-sizing policy.
@@ -93,7 +93,7 @@ Credentials and secret values must not be embedded in the serialized job. The jo
 A Plan is a deterministic, inspectable description of the work to be done. It includes:
 
 - Plan ID and digest.
-- Captured source metadata/version or a declared consistency assumption.
+- The recorded identity of every source object and the consistency class it reaches (§8).
 - Schema mapping and format capabilities required.
 - Work-unit descriptors and their stable IDs.
 - Expected output ownership for each unit.
@@ -102,7 +102,7 @@ A Plan is a deterministic, inspectable description of the work to be done. It in
 
 The plan must distinguish **known totals** from **unknown totals**. It must support paginated or incremental discovery; it must not require collecting all object metadata in RAM before processing begins.
 
-If the source is mutable and no consistent snapshot/version can be pinned, UDC must disclose that the job is operating against a best-effort listing rather than claiming snapshot consistency.
+A plan never claims more consistency than its source objects provide. The class reached, and what a job can rely on in each class, are defined in §8.
 
 ### 6.3 Work Unit
 
@@ -111,7 +111,7 @@ A Work Unit is the smallest independently schedulable unit for which UDC can def
 A Work Unit descriptor should contain:
 
 - Stable unit ID derived from a canonical descriptor and plan identity.
-- Source object/table reference and version/ETag/checksum where available.
+- Source object or table reference and its recorded identity (§8).
 - Format adapter and capability identifier.
 - Logical input range (file, row group, partition, range, or adapter-specific split).
 - Schema/mapping version.
@@ -138,7 +138,7 @@ At-least-once execution is expected. UDC does not promise exactly-once execution
 The Planner:
 
 1. Validates the job configuration and preconditions.
-2. Inspects source metadata and obtains a source identity or consistency assumption.
+2. Inspects source metadata and records the identity of every source object (§8).
 3. Resolves format capabilities and schema compatibility.
 4. Produces deterministic Work Unit descriptors.
 5. Estimates work size and resource class when possible.
@@ -168,7 +168,7 @@ A Worker executes one attempt:
 
 In a validation-only job (ADR-0013 §7.4) a Work Unit stops after decoding: it computes evidence for its part of one dataset, and nothing is encoded or staged.
 
-The validate step includes reading the staged output back where ADR-0006 requires it. That read is admitted under the same resource budgets as any other I/O (§9).
+The validate step includes reading the staged output back where ADR-0006 requires it. That read is admitted under the same resource budgets as any other I/O (§10).
 
 A worker should be stateless between attempts. It receives a Work Unit descriptor, a resource budget/lease, and a staging destination. It reports structured progress and outcome.
 
@@ -182,11 +182,60 @@ The processing architecture depends on a durable JobStateStore, but does not def
 
 Orchestration decides *when* publication happens: once per job, after every required Work Unit has an accepted Attempt and the required job-level validation has succeeded. It does not define *how* output becomes visible.
 
-- Generic file/dataset output is published by the Generic Publisher. Its staging layout, output manifest, and publication modes are defined only by ADR-0017. Object placement during publication is admitted under the same resource budgets as any other I/O (§9).
+- Generic file/dataset output is published by the Generic Publisher. Its staging layout, output manifest, and publication modes are defined only by ADR-0017. Object placement during publication is admitted under the same resource budgets as any other I/O (§10).
 - Table-format output is committed by the TableFormatAdapter through the table's native protocol (ADR-0015). The Generic Publisher must not bypass snapshot or catalog transaction semantics.
 - Publication intent and outcome are recorded through the JobStateStore (ADR-0013).
 
-## 8. Work-unit granularity and format capabilities
+## 8. Source identity and consistency
+
+A job converts its source as the source was identified when the job was planned. This section defines how a source object is identified, when the identity is captured and checked, and what happens when the object changes. It is the job's **source consistency policy** that ADR-0013 refers to.
+
+### 8.1 Identity of a source object
+
+The Planner records an identity for every source object in the plan. Which fields exist depends on the provider (ADR-0005):
+
+| Field | Meaning | Examples |
+|---|---|---|
+| Version identifier | Names one version of the object; a read can address that version directly | S3 version ID in a bucket with versioning enabled; GCS generation; Azure version ID with blob versioning enabled |
+| Change validator | An opaque value that changes when the object is replaced; a read can be made conditional on it | S3 ETag; Azure ETag |
+| Metadata | Size, modification time, and file identity; no conditional read exists | Local filesystem: size, modification time, and device and inode, or file ID on Windows |
+
+A content checksum that the provider reports, such as an S3 additional checksum, the GCS CRC32C, or an Azure Content-MD5, is recorded as well where present. It is evidence about the bytes, not the identity, and it is not required. An ETag is never treated as a checksum: an S3 ETag is not an MD5 digest for a multipart upload or for an object encrypted with SSE-KMS or SSE-C.
+
+### 8.2 Consistency classes
+
+The strongest identity available for an object decides its consistency class:
+
+| Class | When it applies | What the job can rely on |
+|---|---|---|
+| Pinned | A version identifier, and the provider retains earlier versions: S3 versioning, GCS object versioning, or Azure blob versioning | Every read names the recorded version. An overwrite after planning does not affect the job while that version is retained |
+| Checked | A change validator, or a generation that a read can name, without retention of earlier versions | Every read request is conditional on the recorded identity. A replaced object makes the read fail; the job never reads the new content, but it cannot complete with the old content either |
+| Best effort | Metadata only, as on a local filesystem | Size, modification time, and file identity are compared before and after each read. A change that leaves all three unchanged is not detected |
+
+The job states a **required class**. By default it is Checked for object-store sources and Best effort for local files. A job may require Pinned. The Planner rejects a job whose source objects do not reach the required class with a Compatibility error (ADR-0008), before any data is read. Every job result states the class achieved, as the weakest class among its source objects.
+
+On Azure an update of a blob's metadata or properties can also change its ETag. Such a change is reported as a change of the source: the policy fails closed.
+
+### 8.3 When identity is captured and checked
+
+- **Planning.** The identity of every source object is captured from the listing or a metadata request and sealed into the plan. It is covered by the plan digest (ADR-0013). The objects in the plan are the source set: an object created after the listing is not part of the job.
+- **Every read.** In the Pinned and Checked classes, every request to a source object carries the recorded identity: data reads, footer and metadata reads, each range read, and the source-side reads that produce validation evidence (ADR-0006). In the Best effort class, metadata is compared before the first read of a Work Unit and after its last.
+- **Resume.** Before an explicit resume is accepted, the identity of every source object is checked again, including the objects of COMPLETED Work Units (ADR-0013).
+
+Identity is not checked again before publication. The published output corresponds to the source as identified at planning, not to the source at the time of publication, and the job result says so.
+
+### 8.4 When a source object changes
+
+| The object changes or is deleted | Pinned | Checked | Best effort |
+|---|---|---|---|
+| After planning, before its Work Unit reads it | The job reads the recorded version | The read fails with a Conflict error | The check before the read fails with a Conflict error |
+| While its Work Unit reads it | No effect | The next request fails with a Conflict error | The check after the read fails with a Conflict error, unless size, modification time, and file identity are all unchanged |
+| After its Work Unit completed, in the same execution | No effect; the output corresponds to the recorded version | Same | Same |
+| Between a failed or cancelled execution and an explicit resume | Resume is accepted while the recorded version is retained | Resume is rejected; a new job is needed | Resume is rejected if the metadata differs |
+
+A Conflict error is never retried blindly (ADR-0008): the Work Unit fails, and the job failure policy (§13.4) applies. A source that keeps changing therefore cannot be converted in the Checked class. It needs versioning, so that the job runs in the Pinned class, or a copy taken before the job.
+
+## 9. Work-unit granularity and format capabilities
 
 Work-unit granularity is format- and workload-specific:
 
@@ -204,9 +253,9 @@ The capability descriptor that reports these properties is defined by ADR-0014 �
 
 The Scheduler chooses among adapter-provided splits; it must not invent unsafe splits.
 
-## 9. Bounded streaming and resource governance
+## 10. Bounded streaming and resource governance
 
-### 9.1 Resource dimensions
+### 10.1 Resource dimensions
 
 UDC must govern at least:
 
@@ -221,7 +270,7 @@ UDC must govern at least:
 - Temporary disk/spill budget.
 - Per-job and process-wide resource budgets.
 
-### 9.2 Byte-aware memory admission
+### 10.2 Byte-aware memory admission
 
 Queue capacity measured only in number of batches is insufficient because a batch's memory footprint varies with row width, nested data, string/binary payloads, and buffer sharing.
 
@@ -231,21 +280,21 @@ Arrow exposes array-buffer size estimates such as `RecordBatch::get_array_memory
 
 The memory budget is not equal to the entire configured process limit. It must reserve headroom for runtime, metadata, decompression/encoding scratch space, allocator fragmentation, and libraries that allocate outside the tracked pool.
 
-### 9.3 Backpressure
+### 10.3 Backpressure
 
 All producer-consumer queues must be bounded. When downstream stages are slow, upstream production waits or reduces admission. An unbounded queue is prohibited in the core data path.
 
 Tokio's guidance explicitly warns that unbounded queues can consume all available memory; bounded channels and explicit concurrency are required. [Tokio channels](https://tokio.rs/tokio/tutorial/channels).
 
-### 9.4 Separate I/O and CPU pools
+### 10.4 Separate I/O and CPU pools
 
 Network I/O concurrency and CPU parallelism are independent tuning dimensions. CPU-heavy decompression, decoding, encoding, and hashing must not starve async I/O workers. Use bounded CPU execution capacity and independent I/O semaphores.
 
-### 9.5 Adaptive controls
+### 10.5 Adaptive controls
 
 The first implementation should use explicit configurable limits and conservative defaults. Adaptive concurrency may be added after reliable signals exist (queue wait, throughput, throttling, error rate, memory pressure). Do not introduce an opaque autoscaler before deterministic manual limits and metrics work.
 
-## 10. Scheduling, throughput, and skew
+## 11. Scheduling, throughput, and skew
 
 The Scheduler should use a bounded ready queue and a bounded in-flight set. It should not create one task for every discovered object.
 
@@ -261,9 +310,9 @@ The first scheduler can use a simple policy (for example, bounded concurrency wi
 
 The system must avoid a few huge units monopolizing all slots while millions of small units wait. Conversely, it should not starve large units indefinitely. Fairness and throughput trade-offs must be measurable.
 
-## 11. Many-small-file and few-large-file strategies
+## 12. Many-small-file and few-large-file strategies
 
-### 11.1 Many small files
+### 12.1 Many small files
 
 - Paginate listings and process metadata incrementally.
 - Batch metadata operations when provider APIs allow it.
@@ -272,7 +321,7 @@ The system must avoid a few huge units monopolizing all slots while millions of 
 - Support output compaction/aggregation with configurable target file sizes.
 - Do not create a single enormous in-memory list of paths.
 
-### 11.2 Few large files
+### 12.2 Few large files
 
 - Stream sequentially where format readers require it.
 - Use row-group or other safe intra-file splits when the adapter supports them.
@@ -280,15 +329,15 @@ The system must avoid a few huge units monopolizing all slots while millions of 
 - Keep batch and decompression memory bounded.
 - Avoid excessive concurrent range reads that amplify request costs or overload storage.
 
-### 11.3 Output sizing and partitioning
+### 12.3 Output sizing and partitioning
 
 Target output file size must be configurable. It is a workload-specific optimization, not a universal magic number. UDC should expose file count and size distribution so users can tune downstream scan efficiency. Partition fan-out must be bounded to avoid generating many tiny output files.
 
-## 12. Completion, failure, and publication boundaries
+## 13. Completion, failure, and publication boundaries
 
 The authoritative Job, Work Unit, Attempt, and Publication state machines, legal transitions, atomicity, durability, and crash-recovery protocol are defined only by [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md). This section describes processing-layer behavior that uses those guarantees.
 
-### 12.1 Work Unit completion boundary
+### 13.1 Work Unit completion boundary
 
 A Work Unit is eligible for durable completion only after:
 1. Its Attempt has written output to isolated staging.
@@ -296,13 +345,13 @@ A Work Unit is eligible for durable completion only after:
 3. The configured validation policy has produced the required evidence.
 4. ADR-0013 accepts exactly one Attempt and durably records the output reference.
 
-### 12.2 Checkpoint granularity
+### 13.2 Checkpoint granularity
 
 For this ADR, a checkpoint means the boundary between independently completed Work Units. Safe resume from inside a Work Unit is format-adapter-specific and is not assumed. ADR-0013 defines how completed units are persisted and recovered.
 
-For mutable sources, the Plan must pin object versions/ETags or state an explicit best-effort consistency model. A retry should restart the whole Work Unit unless the format adapter exposes a safe deterministic resume position.
+A source object that changes during the job is handled as defined in §8. A retry should restart the whole Work Unit unless the format adapter exposes a safe deterministic resume position.
 
-### 12.3 Idempotency and duplicate attempts
+### 13.3 Idempotency and duplicate attempts
 
 - Work Unit identity is stable across Attempts.
 - Every Attempt writes to isolated output ownership.
@@ -311,7 +360,7 @@ For mutable sources, the Plan must pin object versions/ETags or state an explici
 - Late or duplicate Attempts cannot overwrite accepted output.
 - Error classification and retry budget are owned by ADR-0008.
 
-### 12.4 Work Unit failure and job outcome
+### 13.4 Work Unit failure and job outcome
 
 A Work Unit becomes FAILED when its error is not retryable, its retry budget is exhausted, or a validation mismatch repeats on its one further Attempt (ADR-0008). A job with a FAILED required Work Unit cannot proceed to job-level validation or publication.
 
@@ -325,11 +374,11 @@ Completed Work Units keep their accepted output. Failing the job does not roll t
 
 A `continue` policy, which keeps processing independent Work Units after a failure so that the failure report is complete and a later resume has less left to do, is a candidate option and not an MVP requirement. Under either policy nothing is published while a required Work Unit is FAILED.
 
-### 12.5 Publication
+### 13.5 Publication
 
 Orchestration invokes publication as described in §7.5. The protocol is owned by ADR-0017 for generic output and by ADR-0015 for table-native commits. Storage operations and conditional-write capabilities are owned by ADR-0005, validation semantics by ADR-0006, and the publication record with its recovery references by ADR-0013.
 
-## 13. Scale-out boundary
+## 14. Scale-out boundary
 
 The MVP is one process on one node. It should nevertheless use:
 
@@ -345,7 +394,7 @@ A future distributed coordinator would add leases, heartbeats, worker registrati
 
 Do not promise that the single-node manifest is already a distributed state store. Its abstraction should preserve the option, while its first implementation can remain local and single-writer.
 
-## 14. Observability and operational controls
+## 15. Observability and operational controls
 
 Instrument names and types, cardinality and redaction rules, and export are owned by ADR-0010. The processing layer must supply at least these signals:
 
@@ -359,7 +408,7 @@ Instrument names and types, cardinality and redaction rules, and export are owne
 
 The cardinality and redaction rules of ADR-0010 apply to all of these signals; in particular, object paths, partition values, and job IDs are not metric labels.
 
-## 15. Failure model
+## 16. Failure model
 
 The architecture must explicitly handle:
 
@@ -376,7 +425,7 @@ The architecture must explicitly handle:
 
 Retry eligibility and budgets follow ADR-0008: only eligible categories are retried, within attempt and time budgets, and deterministic Data and Compatibility errors fail fast. A process crash must leave outputs staged, not visible as a successful dataset.
 
-## 16. Trade-offs and consequences
+## 17. Trade-offs and consequences
 
 - Planning, manifests, and state transitions create metadata and implementation complexity.
 - Format adapters expose different safe split capabilities; there is no universal split API that makes arbitrary data splittable.
@@ -384,12 +433,13 @@ Retry eligibility and budgets follow ADR-0008: only eligible categories are retr
 - At-least-once execution is accepted; correctness relies on staged outputs, idempotency, and controlled publication rather than exactly-once task execution.
 - Single-node scale-out readiness does not automatically provide distributed correctness. Multi-writer state, leases, consistency, and worker versioning are scoped by ADR-0018.
 - Simpler static limits are less adaptive but easier to reason about and benchmark.
+- In the Checked class a source that keeps changing cannot be converted at all. That is deliberate: reading a mixture of old and new content would be worse than failing.
 
-## 17. Validation plan
+## 18. Validation plan
 
 Benchmarks must cover more than one large Parquet file.
 
-### 17.1 Workload profiles
+### 18.1 Workload profiles
 
 | Profile | Shape | What it validates |
 |---|---|---|
@@ -401,29 +451,31 @@ Benchmarks must cover more than one large Parquet file.
 | Throttled source | Provider throttling/timeouts | Retry budget and adaptive limits |
 | Failure injection | Kill process during every major stage | Recovery and publication safety |
 
-### 17.2 Metrics
+### 18.2 Metrics
 
 Measure end-to-end throughput and cost per TiB; peak RSS; in-flight bytes; CPU utilization; network throughput; object requests/sec; task count; queue wait; retries; time spent in each stage; output file count/size distribution; and recovery time.
 
-### 17.3 Acceptance criteria
+### 18.3 Acceptance criteria
 
 - Peak memory remains within the configured process budget plus documented runtime/allocator headroom as total input size increases.
 - Queue depth, in-flight bytes, active requests, and task count remain bounded under slow-sink and throttling tests.
 - Increasing work-unit count does not cause planner memory to grow linearly with all discovered objects; planning must paginate or spill/persist fragments.
 - With sufficient independent work and available resources, throughput increases as concurrency increases until a measured CPU, network, storage, or provider limit is reached.
 - A failed Work Unit can be retried without rewriting accepted Work Units or exposing partial output.
+- A source object replaced at each point of the table in §8 is never read in its new state: the job reads the recorded version or fails with a Conflict error, as the table states. Each provider and class is tested separately.
 - Process interruption at every stage can recover to a valid terminal state or fail with explicit cleanup instructions.
 - Results include hardware, software versions, cloud region, dataset shape, limits, and benchmark scripts.
 
 Do not claim PB-scale support from a single-node benchmark. Scale claims must specify dataset shape, worker count, resource budget, cloud topology, and throughput.
 
-## 18. Ownership boundary
+## 19. Ownership boundary
 
-**Owns:** planning, work-unit granularity selection, scheduling policy and fairness, the worker contract, resource budgets, job failure policy, and the point at which the job workflow invokes validation and publication.
+**Owns:** planning, the source identity and consistency policy, work-unit granularity selection, scheduling policy and fairness, the worker contract, resource budgets, job failure policy, and the point at which the job workflow invokes validation and publication.
 
 **Does not own:**
 - Persisted records, legal state transitions, recovery, and explicit resume — ADR-0013. This ADR must not define a competing state machine.
 - Safe split boundaries and reader/writer capabilities — ADR-0014. The Scheduler chooses among adapter-provided splits.
+- Which identity fields and conditional reads each storage provider offers — ADR-0005.
 - Runtime primitives that enforce the budgets — ADR-0007.
 - Error categories and retry eligibility — ADR-0008.
 - What validation means and proves — ADR-0006.
@@ -433,7 +485,7 @@ Do not claim PB-scale support from a single-node benchmark. Scale claims must sp
 - Telemetry instrumentation and cardinality rules — ADR-0010.
 - Distributed coordination — ADR-0018.
 
-## 19. Revisit conditions
+## 20. Revisit conditions
 
 Revisit this ADR when:
 - benchmarks show the single-node design cannot meet target throughput despite tuning;
@@ -442,7 +494,7 @@ Revisit this ADR when:
 - table-format operations require transaction-aware planning beyond the file-level model;
 - measured source/destination constraints require new scheduling or cost policies.
 
-## 20. References
+## 21. References
 
 - [Apache Parquet format](https://github.com/apache/parquet-format)
 - [Arrow Rust RecordBatch memory-size API](https://arrow.apache.org/rust/arrow/record_batch/struct.RecordBatch.html)
@@ -450,7 +502,7 @@ Revisit this ADR when:
 - [Amazon S3 multipart upload limits](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
 - [Apache Iceberg specification](https://iceberg.apache.org/spec/)
 
-## 21. Related ADRs
+## 22. Related ADRs
 
 - [ADR-0004: Execution Engine Selection](ADR-0004-execution-engine-selection.md)
 - [ADR-0005: Storage Abstraction](ADR-0005-storage-abstraction.md)

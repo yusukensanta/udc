@@ -42,13 +42,13 @@ This is the proposed category set. Individual error codes within each category a
 | Category | Examples | Default retry disposition |
 |---|---|---|
 | Configuration | Invalid option, malformed job configuration, unknown critical setting | Never retried |
-| Compatibility | Unsupported format or table feature, incompatible schema mapping, plan or descriptor version the running UDC cannot interpret | Never retried |
+| Compatibility | Unsupported format or table feature, incompatible schema mapping, plan or descriptor version the running UDC cannot interpret, source objects below the required consistency class | Never retried |
 | Data | Corrupt input, deterministic decode error, value that violates the mapping policy | Never retried |
 | Validation | Evidence at a selected validation level does not agree between the source and the output (ADR-0006) | One fresh Attempt in a conversion job, then permanent (§7.1) |
 | Authentication / authorization | Credentials missing, expired, or not refreshable; permission denied | Not retried without an explicit policy |
 | Transient | Selected timeouts, connection resets, provider throttling, temporary identity-endpoint failure | Retried with backoff, within budget |
 | Resource | Memory budget exhausted, disk full, quota exceeded | Not retried by default; policy-dependent |
-| Conflict | Source changed after planning, concurrent update of the destination, an existing object at a destination name, table commit conflict | Never retried blindly; requires reconciliation or a new plan |
+| Conflict | Source object changed or deleted after planning (ADR-0012), concurrent update of the destination, an existing object at a destination name, table commit conflict | Never retried blindly; requires reconciliation or a new plan |
 | Cancelled | User cancellation, graceful shutdown | Never retried |
 | Internal | Violated invariant, illegal state transition, other defect | Never retried |
 

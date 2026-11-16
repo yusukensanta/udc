@@ -200,7 +200,7 @@ On restart:
 2. Identify jobs that were non-terminal at shutdown.
 3. Reconcile RUNNING attempts whose process/lease is no longer active.
 4. Inspect staged outputs and multipart upload state where provider APIs allow it.
-5. Verify source identity/version assumptions still hold.
+5. Check the identity of the source objects of non-terminal Work Units under the source consistency policy (ADR-0012).
 6. Resume only units whose plan and source identity remain valid.
 7. Re-run validation for staged outputs if validation evidence is missing or not durable.
 8. Never infer publication success solely from a worker's pre-crash in-memory result.
@@ -235,7 +235,7 @@ Resume is an explicit operation (`udc job resume`, ADR-0009). It is never an aut
 1. The job is FAILED or CANCELLED and its plan was sealed. A SUCCEEDED job cannot be resumed, and a job that ended during PLANNING has no sealed plan to resume and must be created again.
 2. The persisted manifest, plan, and descriptor versions are supported by the running UDC version, and the running version implements the normalization rules version pinned by the plan (§14).
 3. The job specification digest and plan digest are unchanged. Only execution-tuning settings may be overridden; data-semantics settings may not (ADR-0009).
-4. Source identity still matches the plan for every Work Unit, including completed ones, under the job's source consistency policy. A changed source object invalidates the plan.
+4. The recorded identity of every source object, including those of completed Work Units, is still valid under the source consistency policy of ADR-0012: in the Pinned class the recorded version is still retained, and in the Checked and Best effort classes the object is unchanged. Otherwise the plan is invalid and a new job is needed.
 5. Every output object referenced by an accepted Attempt still exists and matches its recorded identity.
 
 ### 10.5 Resume transition
@@ -354,14 +354,14 @@ Build a crash-recovery test harness that terminates execution after each boundar
 
 Verify recovery is idempotent, legal transitions are enforced, stale attempts cannot be accepted, completed Work Units are not rewritten, and published data is not exposed twice or incorrectly marked failed. Also test manifest corruption, incompatible schema versions, disk full, and concurrent state transitions.
 
-Test explicit resume: resume after FAILED and after CANCELLED; rejection when a source object or an accepted output object changed; rejection for an unsupported descriptor version; no re-execution of COMPLETED Work Units; a fresh retry budget in the new generation; and resume of a job that failed during PUBLISHING, with the commit both applied and not applied, and with a promotion that placed only some of its objects.
+Test explicit resume: resume after FAILED and after CANCELLED; rejection when a source object or an accepted output object changed; rejection for an unsupported descriptor version; no re-execution of COMPLETED Work Units; a fresh retry budget in the new generation; and resume of a job that failed during PUBLISHING, with the commit both applied and not applied, and with a promotion that placed only some of its objects. Test resume after a source object was replaced: rejected in the Checked and Best effort classes, accepted in the Pinned class while the recorded version is retained.
 
 ## 18. Ownership boundary
 
 **Owns:** persisted records, execution generations, state machines and legal transitions, atomicity, durability, restart recovery, and explicit resume. It records validation and publication outcomes and the references needed to reconcile them.
 
 **Does not own:**
-- How work is split, scheduled, or budgeted, and when the Scheduler stops a job after a Work Unit failure — ADR-0012. ADR-0012 may specify when the Scheduler calls the State Store, but it must not define a competing state machine.
+- How work is split, scheduled, or budgeted, when the Scheduler stops a job after a Work Unit failure, and the source consistency policy — ADR-0012. ADR-0012 may specify when the Scheduler calls the State Store, but it must not define a competing state machine.
 - Object-storage operations and multipart transfer semantics — ADR-0005.
 - Validation algorithms and equivalence guarantees — ADR-0006.
 - Retry eligibility and backoff — ADR-0008.
