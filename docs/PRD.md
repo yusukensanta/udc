@@ -366,6 +366,7 @@ Requirements:
 - Durable completion acknowledgement for a work unit only after its required output and validation conditions are met.
 - Recovery after process restart from durably completed work units.
 - Explicit resume of a failed or cancelled job over its sealed plan, reusing durably completed work units while the plan, source identity, and accepted outputs remain valid.
+- A recorded identity for every source object, captured at planning and checked on every read where the provider allows it. Each result states the consistency class reached (pinned, checked, or best effort). A source object that changes during the job fails it; it is never read in its changed state ([ADR-0012](adr/ADR-0012-scalable-data-processing.md)).
 - No exactly-once execution claim; safe effects are achieved through attempt isolation, acceptance, validation, and publication.
 
 The MVP requires a durable local Job State Store, restart recovery, and explicit resume. The persisted state model, legal transitions, and the recovery and resume contracts are defined in [ADR-0013](adr/ADR-0013-job-manifest-and-state-management.md). Planning, scheduling, worker contracts, resource budgets, and job failure policy are defined in [ADR-0012](adr/ADR-0012-scalable-data-processing.md).
@@ -394,7 +395,9 @@ Requirements:
 - Detect conflicting writes to the same logical destination.
 - Clean up only unreferenced staging artifacts.
 - Reject the job at planning time where the destination cannot provide the primitives the selected mode requires; never fall back to writing directly into the destination.
-- When a publication is interrupted, complete it on resume, or withdraw the objects it placed when the job is abandoned.
+- When a publication is interrupted, complete it on resume, or withdraw the objects it placed when the job is abandoned. Withdrawal is cleanup: it cannot undo reads that consumers made before it.
+- Write a completion marker last, with a documented format, so that a consumer that waits for it never reads an incomplete set.
+- Admit one publication at a time into a destination prefix, and reject a destination nested inside another publication.
 
 There is no universal atomic directory rename guarantee across object stores. Generic file/dataset publication is specified in [ADR-0017](adr/ADR-0017-output-publication-protocol.md). Table-format writes must use their native commit protocol as specified in ADR-0015.
 
@@ -552,6 +555,7 @@ The MVP should demonstrate:
 | Durable local Job State Store | Required |
 | Durable work-unit completion and process-restart resume | Required |
 | Explicit resume of a failed or cancelled job over its sealed plan | Required |
+| Source identity checked on every read: the checked class for object-store sources, best effort for local files | Required |
 | Generic publication, Promotion mode (validated before visible) | Required for each storage provider in the release support matrix |
 | Generic publication, Reference mode (all or nothing for consumers that read the reference) | Optional; only with a consumer convention that has been implemented and verified (ADR-0017) |
 | Read-only Iceberg metadata inspection | First table-format target (Phase 5); not a prerequisite for the core file-conversion MVP unless explicitly selected as a release milestone |
@@ -627,7 +631,7 @@ The initial implementation is a modular Rust codebase, not a set of independentl
 | Orchestration | Planning, work-unit scheduling, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, storage consistency semantics, validation semantics, or the publication protocol |
 | Job State Store | Durable Job/Plan/Work Unit/Attempt/Publication records, legal transitions, atomic acceptance, recovery, and explicit resume | Dataset payload I/O, format decoding, or table transactions |
 | Generic Publisher | File/dataset staging layout, output manifest, and publication modes with their guarantees | Table-native transactions, or inventing atomic rename |
-| Packaging and distribution | Distribution channels, official targets and feature set, crate and binary naming, release pipeline, and the public-release gate | Cargo feature mechanics, or persisted-state versioning |
+| Packaging and distribution | Distribution channels, official targets and feature set, crate and binary naming, release pipeline, and the gates for source visibility and the first package release | Cargo feature mechanics, or persisted-state versioning |
 
 This table summarizes the responsibility map in [ADR-0001](adr/ADR-0001-initial-architecture.md), which is authoritative together with its shared vocabulary and conflict-resolution rules. Focused contracts are in ADR-0003 through ADR-0019.
 
@@ -713,7 +717,7 @@ No dependency should be considered selected solely because it appears in this ta
 
 The MVP is intended to be distributed and run as a local CLI and reusable Rust library. Its runtime does not require an API server, hosted control plane, database service, or Kubernetes.
 
-The proposed distribution is prebuilt binaries on GitHub Releases plus crates.io packages, starting at the first MVP release. The repository is private until that release and becomes public with it, so no public installation channel exists before then.
+The proposed distribution is prebuilt binaries on GitHub Releases plus crates.io packages, starting at the first MVP release. The repository becomes public earlier, at the end of Phase 0, as public development: no stable interfaces, no packages, and no installation channel before the MVP release.
 
 - The package name `udc` belongs to unrelated projects on crates.io, PyPI, and npm. The proposed CLI package is `udc-cli`, installing a command named `udc`; fallback names are prepared in ADR-0019.
 - Every channel ships one official feature set, which matches the release support matrix.
@@ -771,7 +775,7 @@ The roadmap is capability-driven, not strictly time-driven. Phases identify sequ
 
 | Phase | Deliverable |
 |---|---|
-| Phase 0 | Core contracts, local Parquet inspection/conversion, reproducible baseline, and the reference configuration with the first evidence gate (§13.3) |
+| Phase 0 | Core contracts, local Parquet inspection/conversion, reproducible baseline, and the reference configuration with the first evidence gate (§13.3). The repository becomes public at its end ([ADR-0019](adr/ADR-0019-packaging-and-distribution.md)) |
 | Phase 1 | CSV / JSON adapters and basic schema mapping |
 | Phase 2 | Validation semantics including normalization rules version 1 and L4, durable local job/work-unit recovery, and explicit resume |
 | Phase 3 | S3 / GCS integration and verified generic output publication |
@@ -917,7 +921,7 @@ Potential future evaluations include distributed execution with remote workers, 
 | Cloud credential expiry or leakage | Provider-native refresh, short-lived identities, opaque handles, and secret redaction |
 | Dependency or protocol maturity | POC, compatibility tests, licensing review, and explicit deferred capabilities |
 | Premature distributed architecture | Keep MVP single-node; introduce remote coordination only when independently scaling is justified |
-| Package name `udc` is taken on crates.io, PyPI, and npm, and other names cannot be reserved | Publish as `udc-cli` under the `udc-` prefix; warn in installation docs; keep the fallback naming plans of ADR-0019 ready; re-check names at the public-release gate |
+| Package name `udc` is taken on crates.io, PyPI, and npm, and other names cannot be reserved | Publish as `udc-cli` under the `udc-` prefix; warn in installation docs; keep the fallback naming plans of ADR-0019 ready; re-check names before the first package release |
 | Native dependencies break a build target | Explicit TLS and native-library choices validated per target before the target is declared supported |
 
 ## 17. Open Architecture Decisions
@@ -944,7 +948,7 @@ Architecture contracts and decisions are tracked in the ADRs. A Proposed or Unde
 | [ADR-0016](adr/ADR-0016-cloud-authentication.md) | Cloud identity and credential resolution | Proposed |
 | [ADR-0017](adr/ADR-0017-output-publication-protocol.md) | Generic Publisher and file/dataset output publication | Proposed |
 | [ADR-0018](adr/ADR-0018-distributed-job-state-store.md) | Future distributed Job State Store and coordination | Proposed; deferred until multi-worker execution is required |
-| [ADR-0019](adr/ADR-0019-packaging-and-distribution.md) | Packaging, release, distribution, and the public-release gate | Proposed |
+| [ADR-0019](adr/ADR-0019-packaging-and-distribution.md) | Packaging, release, distribution, and the gates for source visibility and the first package release | Proposed |
 
 Other open questions include dependency license compatibility, exact release support matrices, and implementation-specific library/version choices. These should be resolved through implementation evidence and focused ADR updates rather than by treating this PRD as a substitute for detailed design.
 

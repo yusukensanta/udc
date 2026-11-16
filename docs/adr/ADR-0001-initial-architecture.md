@@ -51,7 +51,7 @@ Each concern has one owner. The table states what the concern owns, what it must
 | Orchestration | Planning, work-unit scheduling, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, storage consistency semantics, validation semantics, or the publication protocol | ADR-0012 |
 | Job State Store | Durable Job/Plan/Work Unit/Attempt/Publication records, legal transitions, atomic acceptance, recovery, and explicit resume | Dataset payload I/O, format decoding, or table transactions | ADR-0013 |
 | Generic Publisher | File/dataset staging layout, output manifest, and publication modes with their guarantees | Table-native transactions, or inventing atomic rename | ADR-0017 |
-| Packaging and distribution | Distribution channels, official targets and feature set, crate and binary naming, release pipeline, and the public-release gate | Cargo feature mechanics, or persisted-state versioning | ADR-0019 |
+| Packaging and distribution | Distribution channels, official targets and feature set, crate and binary naming, release pipeline, and the gates for source visibility and the first package release | Cargo feature mechanics, or persisted-state versioning | ADR-0019 |
 
 ### 3.4 Reuse mature implementations instead of reimplementing protocols
 
@@ -76,14 +76,14 @@ The initial deliverable should be a single deployable CLI/library with internal 
 | 0009 | CLI, user configuration, and configuration precedence | Internal job state representation and credential resolution |
 | 0010 | Telemetry instrumentation and export | Business state machine |
 | 0011 | Workspace/dependency/feature graph, and which crates are published | Runtime architecture decisions, per-concern library selection, crate naming, and what the official binary contains |
-| 0012 | Job planning, work-unit granularity, scheduler policy, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, legal state transitions, resume, and the publication protocol |
+| 0012 | Job planning, the source identity and consistency policy, work-unit granularity, scheduler policy, worker contract, resource budgets, job failure policy, and the point at which validation and publication are invoked | Persisted state schema, legal state transitions, resume, and the publication protocol |
 | 0013 | Job/Plan/Work Unit/Attempt/Publication records, execution generations, state transitions, atomicity, durability, single-node recovery, and explicit resume | Data I/O and scheduling policy; distributed backend selection |
 | 0014 | File-format adapter contract, safe splits, streaming reader/writer capabilities | Job scheduling and retry/state |
 | 0015 | Table-format adapter boundary, snapshot semantics, native table commits, and plain-file-to-table operations | Generic file-output publication |
 | 0016 | Cloud identity resolution, credential source, and refresh policy | Object byte operations and CLI syntax |
 | 0017 | Generic Publisher: file/dataset staging layout, output manifest, publication modes and their guarantees, reconciliation, and staging cleanup rules | Table-native transaction protocol; when publication is invoked |
 | 0018 | Future multi-worker JobStateStore backend, leases, and distributed coordination | Logical state model and MVP local backend |
-| 0019 | Distribution channels, official binary targets and feature set, crate and binary naming, release pipeline and provenance, upgrade communication, and the public-release gate | Cargo feature mechanics, persisted-state migration, and per-concern library selection |
+| 0019 | Distribution channels, official binary targets and feature set, crate and binary naming, release pipeline and provenance, upgrade communication, and the gates for source visibility and the first package release | Cargo feature mechanics, persisted-state migration, and per-concern library selection |
 
 ## 5. Shared vocabulary
 
@@ -96,6 +96,7 @@ All project documents use these terms with the meaning given by the defining ADR
 | Execution generation | One run of a sealed Plan from READY to a terminal job state. Explicit resume starts a new execution generation over the same plan generation | ADR-0013 |
 | Work Unit | The smallest independently schedulable and retryable unit with a defined input boundary and output ownership | ADR-0012 |
 | SplitDescriptor | An adapter-provided safe input boundary, wrapped by a Work Unit | ADR-0014 |
+| Source identity, consistency class | The identity of a source object recorded at planning, and the class it reaches: pinned, checked, or best effort | ADR-0012 |
 | Attempt | One execution of a Work Unit, writing to its own staging namespace | ADR-0012 (concept), ADR-0013 (record) |
 | Acceptance | The durable, conditional selection of exactly one validated Attempt as a Work Unit's output | ADR-0013 |
 | Checkpoint | A durable accepted-work boundary: a completed Work Unit | ADR-0013 |
@@ -106,6 +107,7 @@ All project documents use these terms with the meaning given by the defining ADR
 | Publication | Making a validated output set visible, in a publication mode for generic output or through a native commit for a table | ADR-0017 (generic), ADR-0015 (table) |
 | Publication mode | How the objects of an output manifest become visible, and the guarantee that may be claimed: Promotion mode (validated before visible, for consumers that list a prefix) or Reference mode (all or nothing, for consumers that read a publication reference) | ADR-0017 |
 | Generic Publisher | The component that executes the generic file/dataset publication protocol | ADR-0017 |
+| Completion marker | The object a Promotion-mode publication writes last; its presence means that the output set it names is complete | ADR-0017 |
 | Validation level (L1–L5) | A named level of validation evidence | ADR-0006 |
 | Normalization rules | The published, versioned specification of the canonical form of a logical value and of when two logical values are equal. The normalization policy is a job's selection among the choices a rules version allows | ADR-0006 |
 | Transfer integrity | A physical byte checksum of a stored or copied object. Not a validation level | ADR-0006 |
