@@ -18,6 +18,7 @@ docs/
   adr/             Architecture Decision Records, ADR-0001 to ADR-0019
 tools/
   docs/            Consistency checks for the documentation, run in CI
+  s3/              S3 behaviour tests and a disposable local S3 store (RustFS), run in CI
 ```
 
 The planned crate and directory organization is illustrated in [PRD §11.2](docs/PRD.md#112-illustrative-repository-organization). Those directories do not exist yet; each will be added when the functionality it holds is implemented.
