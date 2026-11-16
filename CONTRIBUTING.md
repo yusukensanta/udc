@@ -80,6 +80,8 @@ A pull request should help reviewers understand both the change and its evidence
 - **Operational impact:** performance, memory, retry, recovery, security, and publication implications where relevant.
 - **AI assistance:** a short disclosure when AI materially contributed, as described above.
 
+Before opening a pull request that touches `crates/`, run the checks CI runs: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features` with warnings treated as errors, line coverage of at least 80% with `cargo llvm-cov`, and `cargo deny check`; the exact commands are in [the workflow](.github/workflows/rust.yml). A binary's `main.rs` only calls into its crate's library and is excluded from coverage, so put code and its tests in the library. The toolchain is pinned by `rust-toolchain.toml` (ADR-0002).
+
 Keep pull requests focused. Large generated changes should be split into reviewable units where practical. Do not use AI to manufacture reviews, test evidence, benchmark results, citations, or contributor identity.
 
 ## Reporting bugs
