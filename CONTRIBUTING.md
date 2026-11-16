@@ -96,4 +96,4 @@ Include:
 
 ## License
 
-By contributing, you agree that your contributions are submitted under the project's license, which is intended to be Apache License 2.0, subject to confirmation in the repository.
+UDC is licensed under the [Apache License 2.0](LICENSE). Unless you state otherwise, a contribution you submit is licensed under the same terms, as section 5 of the license provides.
