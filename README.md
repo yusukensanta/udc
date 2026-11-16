@@ -51,7 +51,7 @@ Plain files have no transaction log, so UDC does not claim an atomic commit for 
 
 After the MVP, the same job layer is planned for the path from plain files to an Iceberg table: checking files against a table schema before they are registered, validating a table against the files it came from, and loading files that need a rewrite with validation before the commit. Registering or translating existing files without reading them is left to the table formats' own tooling.
 
-Whether there is enough demand for that combination has not been established. The comparison is in [PRD §2.5](docs/PRD.md#25-existing-tools-and-where-udc-fits), and the way the question will be tested is in [PRD §13.3](docs/PRD.md#133-value-hypotheses-and-evidence-gates).
+UDC is primarily a personal project. Whether others need that combination has not been established, and the project does not wait for that answer. The comparison is in [PRD §2.5](docs/PRD.md#25-existing-tools-and-where-udc-fits), and the technical hypotheses that are tested are in [PRD §13.3](docs/PRD.md#133-value-hypotheses-and-evidence-gates).
 
 ## Architecture decisions
 
@@ -84,7 +84,7 @@ Only Rust is decided. Everything else is a candidate that must be validated befo
 
 There is nothing to install yet. The planned distribution is prebuilt binaries plus crates.io packages, starting at the first MVP release; see [ADR-0019](docs/adr/ADR-0019-packaging-and-distribution.md).
 
-The repository is planned to become public at the end of Phase 0, as public development: interfaces may change without notice, nothing is packaged, and there is no support commitment.
+The repository is planned to become public during Phase 0, once the reference configuration of the first evidence gate runs, as public development: interfaces may change without notice, nothing is packaged, and there is no support commitment.
 
 The packages named `udc` on crates.io, PyPI, and npm are unrelated projects. UDC's CLI is proposed to be published as `udc-cli`.
 
@@ -98,4 +98,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-The project intends to use Apache License 2.0. The license file will be added after dependency and licensing review.
+UDC is licensed under the [Apache License 2.0](LICENSE). Each dependency's license is reviewed before it is added ([ADR-0011](docs/adr/ADR-0011-dependency-and-feature-management.md)).
