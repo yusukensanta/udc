@@ -6,13 +6,18 @@ UDC is an open-source command-line tool and library that runs data-format conver
 
 Its goal is to make a conversion trustworthy: the schema mapping is classified before data moves, the output is validated against the source under published rules, an interrupted job resumes from completed work, and only validated output is published.
 
-> **Status:** Product definition and architecture design. This repository currently contains documentation and the scripts that check it. There is no product source code, build configuration, or released implementation yet, and no format or cloud integration should be considered supported until it is implemented here and covered by tests.
+> **Status:** Product definition and architecture design. This repository currently contains documentation, the scripts that check it, evidence tooling, and an empty Rust workspace. There is no product logic or released implementation yet, and no format or cloud integration should be considered supported until it is implemented here and covered by tests.
 
 ## What is in this repository
 
 ```text
 README.md          Project overview (this file)
 CONTRIBUTING.md    Contribution guidelines, ADR conventions, and AI-assistance policy
+Cargo.toml         Rust workspace; rust-toolchain.toml pins the toolchain (ADR-0002)
+deny.toml          Dependency license, advisory, and source rules (ADR-0011)
+crates/
+  udc-core/        Core library (empty)
+  udc-cli/         The `udc` command (empty)
 docs/
   PRD.md           Product Requirements Document (draft)
   adr/             Architecture Decision Records, ADR-0001 to ADR-0019
