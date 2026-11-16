@@ -205,7 +205,7 @@ Reference mode is useful only with a convention that consumers can follow. The c
 - UDC prints the object list of a published dataset, and the consumer passes the list to its reader.
 - UDC writes a manifest in a format that existing engines already read, such as the Hive symlink manifest that Delta Lake generates for Presto, Trino, and Athena.
 
-Neither is selected. Reference mode is part of an MVP release only if one convention has been implemented and verified against at least one consumer. Which convention is worth supporting is one of the questions for the practitioner conversations of [PRD §13.3](../PRD.md#133-value-hypotheses-and-evidence-gates).
+Neither is selected. Reference mode is part of an MVP release only if one convention has been implemented and verified against at least one consumer. Which convention is worth supporting is decided when a consumer that needs Reference mode is known, from the author's own use or from issues ([PRD §13.3](../PRD.md#133-value-hypotheses-and-evidence-gates)).
 
 A third arrangement, a sealed version location whose reference is held outside UDC (§3), needs no extra copy and serves prefix-listing consumers. It is not part of the MVP and is revisited with the first evidence about how consumers are switched to a new location.
 

@@ -12,7 +12,7 @@ UDC is intended to ship as a local CLI and a reusable Rust library (PRD §11.1).
 - ADR-0011 keeps default Cargo features minimal. A prebuilt binary has to fix one feature set, so a binary and a `cargo install` build can differ unless that is decided deliberately.
 - Format, storage, TLS, and state-store libraries can bring C or C++ code that is compiled at build time. Each one adds requirements to every build target.
 - Crate names on crates.io are global and first-come, first-served.
-- The repository is private. The maintainers have decided that the source becomes public at the end of Phase 0, and that packages are first published at the MVP release (§12).
+- The repository is private. The maintainers have decided that the source becomes public once the reference configuration of the first evidence gate runs, during Phase 0, and that packages are first published at the MVP release (§12).
 
 Facts established on 2026-11-15:
 
@@ -56,13 +56,13 @@ Facts established on 2026-11-15:
 
 | Option | Strengths | Limitations / risks |
 |---|---|---|
-| **Private until the first MVP release** | No outside expectations before the product works; planned names stay unseen | No outside feedback before the MVP, including for the evidence gates of PRD §13.3; the history to audit keeps growing |
-| **Public at the end of Phase 0; packages at the MVP release** | Outside feedback when the first evidence gate needs it, with a working reference configuration to show; the history is audited while it is small | Planned crate names are visible before they can be published; issues and expectations arrive before the project can support users |
+| **Private until the first MVP release** | No outside expectations before the product works; planned names stay unseen | No outside feedback before the MVP; the history to audit keeps growing |
+| **Public once the reference configuration runs, during Phase 0; packages at the MVP release** | Something runnable to show, and outside comments are possible early at no cost; the history is audited while it is small | Planned crate names are visible before they can be published; issues and expectations arrive before the project can support users |
 | **Public now** | Earliest feedback | Nothing runnable to show; the design will still change substantially |
 
 ## 4. Proposed decision
 
-Distribute UDC as **prebuilt binaries plus crates.io packages**, starting at the first MVP release. The repository becomes public earlier, at the end of Phase 0, as public development without packages (§12).
+Distribute UDC as **prebuilt binaries plus crates.io packages**, starting at the first MVP release. The repository becomes public earlier, once the reference configuration of the first evidence gate runs, during Phase 0, as public development without packages (§12).
 
 - **First wave:** per-target archives on GitHub Releases with shell and PowerShell installers; a project Homebrew tap; crates.io for the library crates and for `cargo install` and `cargo binstall`.
 - **Second wave, on demand after the MVP:** a PyPI wheel carrying the binary, a container image, and winget. Each is added only under the rules in §9.
@@ -80,7 +80,7 @@ Starting with few channels keeps every channel automated. A channel that is publ
 
 A package name that differs from the command it installs is established practice on crates.io: `ripgrep` installs `rg`, `fd-find` installs `fd`, and `sqlx-cli` installs `sqlx`. Publishing `udc-cli` with a `udc` command follows the same `-cli` convention and needs no special handling by `cargo install` or `cargo binstall`.
 
-The source becomes public before the packages because the two serve different purposes. The first evidence gate, at the end of Phase 0, needs practitioners outside the project to look at the positioning, the PRD, and the reference configuration ([PRD §13.3](../PRD.md#133-value-hypotheses-and-evidence-gates)). A public repository is the simplest way to show them those, and lets them answer in issues. A package, by contrast, is a promise that a user can install and rely on something, which the project cannot make before the MVP. Auditing the history for secrets is also cheapest while it holds mostly documents.
+The source becomes public before the packages because the two serve different purposes. UDC is primarily a personal project, and public development costs it little: once the reference configuration of the first evidence gate runs ([PRD §13.3](../PRD.md#133-value-hypotheses-and-evidence-gates)), there is something concrete to show, and anyone who finds the project can comment in issues. Those comments are also the only evidence the PRD collects about whether others need UDC. A package, by contrast, is a promise that a user can install and rely on something, which the project cannot make before the MVP. Auditing the history for secrets is also cheapest while it holds mostly documents.
 
 ## 6. Crate and binary naming
 
@@ -199,7 +199,7 @@ Making the source public and publishing packages are separate steps with separat
 
 ### 12.1 Source visibility
 
-The repository becomes public at the end of Phase 0 (PRD §12), as **public development**:
+The repository becomes public once the reference configuration of the first evidence gate runs, during Phase 0 (PRD §12), as **public development**:
 
 - Interfaces are not stable. The CLI, the configuration format, the library API, and persisted formats may change without notice or migration.
 - No package or binary is published, and no installation channel exists.
@@ -219,7 +219,7 @@ Before the repository becomes public, all of the following must be true:
 Packages and binaries are first published at the MVP release. Nothing is published to crates.io, and no binary release is created, before it.
 
 - The release pipeline is rehearsed without publishing: builds for every official target, `cargo publish --dry-run`, and installers tested against artifacts attached to a draft release, which only maintainers can see.
-- Planned crate names are visible in the public repository from the end of Phase 0, but cannot be held before the first publish. They may be taken in the meantime; this risk is accepted, and the fallback in §6.3 applies.
+- Planned crate names are visible in the public repository from that point, but cannot be held before the first publish. They may be taken in the meantime; this risk is accepted, and the fallback in §6.3 applies.
 
 Before the first package release, all of the following must be true:
 

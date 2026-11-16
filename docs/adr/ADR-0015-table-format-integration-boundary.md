@@ -75,7 +75,7 @@ No ADR owns the CatalogAdapter contract yet. This subsection fixes only its boun
 - how table metadata is read, and how the native commit is coordinated without bypassing the catalog's concurrency control;
 - credential acquisition and refresh through ADR-0016, with no secret persisted in job state;
 - error mapping to ADR-0008, including the outcome when table metadata changes during a job;
-- the first catalog to support and the reason, or that the choice waits for the evidence of PRD §13.3 (H5);
+- the first catalog to support and the reason, or that the choice waits for a concrete need;
 - integration tests for a successful append, a commit conflict, retry or re-planning, and recovery of an ambiguous commit outcome.
 
 ### 6.4 StorageAdapter owns
