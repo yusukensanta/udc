@@ -1,0 +1,30 @@
+# Disposable S3-compatible store for local and CI tests.
+# Data lives in tmpfs: `docker compose down` removes every bucket and object.
+# The credentials are fixed test values for this container only; they are not secrets.
+name: udc-s3-local
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.6@sha256:ee717072290bec9b11abfc0365f8310b00df1cd9b3639943edae47bdef05044a
+    security_opt:
+      - "no-new-privileges:true"
+    ports:
+      - "127.0.0.1:${UDC_S3_PORT:-19000}:9000"
+    environment:
+      # Four data directories, as in RustFS's own Compose example; versioning is tested with this layout.
+      RUSTFS_VOLUMES: /data/rustfs{0...3}
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: "false"
+      RUSTFS_ACCESS_KEY: udc-local-access
+      RUSTFS_SECRET_KEY: udc-local-secret
+      RUSTFS_OBS_LOGGER_LEVEL: warn
+    tmpfs:
+      - /data/rustfs0:uid=10001,gid=10001,size=256m
+      - /data/rustfs1:uid=10001,gid=10001,size=256m
+      - /data/rustfs2:uid=10001,gid=10001,size=256m
+      - /data/rustfs3:uid=10001,gid=10001,size=256m
+      - /app/logs:uid=10001,gid=10001,size=32m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30

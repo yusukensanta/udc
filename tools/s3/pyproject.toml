@@ -1,0 +1,26 @@
+[project]
+name = "udc-s3-tests"
+version = "0.0.0"
+description = "Checks of the S3 behaviours UDC relies on, run against a local store or a real provider"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "boto3[crt]>=1.44,<2",
+    "pytest>=9.2,<10",
+    "ruff>=0.17,<0.18",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
