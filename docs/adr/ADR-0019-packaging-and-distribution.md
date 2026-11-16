@@ -3,7 +3,7 @@
 - **Status:** Proposed
 - **Date:** 2026-11-15
 - **Decision owners:** UDC maintainers
-- **Scope:** Distribution channels, official binary targets and feature set, crate and binary naming, release pipeline and artifact provenance, upgrade communication, and the public-release gate.
+- **Scope:** Distribution channels, official binary targets and feature set, crate and binary naming, release pipeline and artifact provenance, upgrade communication, and the gates for source visibility and the first package release.
 
 ## 1. Context
 
@@ -12,7 +12,7 @@ UDC is intended to ship as a local CLI and a reusable Rust library (PRD §11.1).
 - ADR-0011 keeps default Cargo features minimal. A prebuilt binary has to fix one feature set, so a binary and a `cargo install` build can differ unless that is decided deliberately.
 - Format, storage, TLS, and state-store libraries can bring C or C++ code that is compiled at build time. Each one adds requirements to every build target.
 - Crate names on crates.io are global and first-come, first-served.
-- The repository is private. The maintainers have decided that it becomes public at the first MVP release.
+- The repository is private. The maintainers have decided that the source becomes public at the end of Phase 0, and that packages are first published at the MVP release (§12).
 
 Facts established on 2026-11-15:
 
@@ -30,7 +30,7 @@ Facts established on 2026-11-15:
 5. Release work stays proportional: automated, with few channels at first.
 6. The build matrix stays tractable despite native dependencies.
 7. An upgrade never silently misreads persisted job state.
-8. Nothing becomes public before the public-release gate.
+8. Source visibility and package publication are separate decisions, each with its own gate.
 
 ## 3. Options considered
 
@@ -52,9 +52,17 @@ Facts established on 2026-11-15:
 | **Hand-written workflows** | Full control | Every target, installer, and checksum step is maintained by hand |
 | **`release-plz` or `cargo publish --workspace` for crates** | Handles version bumps, changelogs, and multi-crate publishing | Separate from binary releases; Cargo does not document a multi-crate publish as atomic |
 
+### 3.3 Repository visibility
+
+| Option | Strengths | Limitations / risks |
+|---|---|---|
+| **Private until the first MVP release** | No outside expectations before the product works; planned names stay unseen | No outside feedback before the MVP, including for the evidence gates of PRD §13.3; the history to audit keeps growing |
+| **Public at the end of Phase 0; packages at the MVP release** | Outside feedback when the first evidence gate needs it, with a working reference configuration to show; the history is audited while it is small | Planned crate names are visible before they can be published; issues and expectations arrive before the project can support users |
+| **Public now** | Earliest feedback | Nothing runnable to show; the design will still change substantially |
+
 ## 4. Proposed decision
 
-Distribute UDC as **prebuilt binaries plus crates.io packages**, starting at the first MVP release, when the repository becomes public.
+Distribute UDC as **prebuilt binaries plus crates.io packages**, starting at the first MVP release. The repository becomes public earlier, at the end of Phase 0, as public development without packages (§12).
 
 - **First wave:** per-target archives on GitHub Releases with shell and PowerShell installers; a project Homebrew tap; crates.io for the library crates and for `cargo install` and `cargo binstall`.
 - **Second wave, on demand after the MVP:** a PyPI wheel carrying the binary, a container image, and winget. Each is added only under the rules in §9.
@@ -72,6 +80,8 @@ Starting with few channels keeps every channel automated. A channel that is publ
 
 A package name that differs from the command it installs is established practice on crates.io: `ripgrep` installs `rg`, `fd-find` installs `fd`, and `sqlx-cli` installs `sqlx`. Publishing `udc-cli` with a `udc` command follows the same `-cli` convention and needs no special handling by `cargo install` or `cargo binstall`.
 
+The source becomes public before the packages because the two serve different purposes. The first evidence gate, at the end of Phase 0, needs practitioners outside the project to look at the positioning, the PRD, and the reference configuration ([PRD §13.3](../PRD.md#133-value-hypotheses-and-evidence-gates)). A public repository is the simplest way to show them those, and lets them answer in issues. A package, by contrast, is a promise that a user can install and rely on something, which the project cannot make before the MVP. Auditing the history for secrets is also cheapest while it holds mostly documents.
+
 ## 6. Crate and binary naming
 
 ### 6.1 Current proposal
@@ -79,7 +89,7 @@ A package name that differs from the command it installs is established practice
 - Every published crate uses the `udc-` prefix. The CLI package is `udc-cli` on every registry; its command is `udc`.
 - Which crates are published, and how many, is owned by ADR-0011, which keeps the set small. This ADR names them and requires that the release pipeline publishes each one.
 - Installation documentation always names the package `udc-cli`. It must warn that `cargo install udc` and `pip install udc` install unrelated tools.
-- The `udc-` prefix is not reserved; crates.io has no namespaces. Planned names are checked again at the public-release gate (§12).
+- The `udc-` prefix is not reserved; crates.io has no namespaces. Planned names are checked again before the first package release (§12).
 - UDC does not publish placeholder packages to hold names. crates.io prohibits it, and a publish cannot be undone.
 - A name check on the target registry is a precondition for adding any channel.
 
@@ -112,7 +122,7 @@ Package names are permanent once published, and the command name spreads through
 - **Why plan A is the default:** on 2026-11-15 the two packages that install a `udc` command were barely used. The crates.io crate had 22 downloads in total and the PyPI package 38 in the preceding month, so a user having both installed is unlikely. Plan A's remaining costs appear only when PyPI becomes a channel: `uvx` assumes that the package and the command share a name, and `pip install udc` installs a different data tool.
 - **Plan B** keeps the project name UDC and changes only the handle. On 2026-11-15 `udconv` was free on crates.io, PyPI, npm, and Homebrew core, and as a GitHub account name. Its advantage is that the package name equals the command on every registry, so no warning about a wrong package is needed. Its cost is a longer command and a change to every documented command and to the environment-variable prefix.
 - **Plan C candidates**, free on the same five places on the same date: `omniconv`, `formatport`, `lakeferry`, `tablelift`. None is selected. A rename also changes the project name in every document.
-- **Single-name fallback under plan A:** if one `udc-*` library name is taken at the public-release gate, choose a different suffix for that crate. If `udc-cli` is taken, or more than a few library names are, switch to plan B.
+- **Single-name fallback under plan A:** if one `udc-*` library name is taken before the first package release, choose a different suffix for that crate. If `udc-cli` is taken, or more than a few library names are, switch to plan B.
 
 ## 7. Official targets and feature set
 
@@ -183,32 +193,50 @@ Adding a channel requires a name check on that registry, an automated publish st
 - The release notes state, for each release, whether jobs persisted by the previous release can be recovered and resumed. A release that cannot read the previous manifest version is a breaking release.
 - UDC has no self-update mechanism in the first wave. An upgrade uses the same channel as the installation.
 
-## 12. Public-release gate
+## 12. Visibility and release gates
 
-The repository stays private until the first MVP release and becomes public at that release.
+Making the source public and publishing packages are separate steps with separate gates.
 
-Consequences:
+### 12.1 Source visibility
 
-- No public channel exists before that release. In particular, nothing is published to crates.io before it.
-- The release pipeline is rehearsed privately first: builds for every official target, `cargo publish --dry-run`, and installers tested against private release artifacts.
-- Crate names cannot be held in the meantime. They may be taken before the release; this risk is accepted.
+The repository becomes public at the end of Phase 0 (PRD §12), as **public development**:
 
-Before visibility changes, all of the following must be true:
+- Interfaces are not stable. The CLI, the configuration format, the library API, and persisted formats may change without notice or migration.
+- No package or binary is published, and no installation channel exists.
+- There is no support commitment. Issues and discussion are welcome; a response is not guaranteed.
+- The ADRs and the PRD are proposals until their status says otherwise.
 
-1. The LICENSE file is present and the dependency license review required by the PRD is complete.
+Before the repository becomes public, all of the following must be true:
+
+1. The LICENSE file is present, and the license review of every dependency used so far is complete.
 2. The full git history has been audited for secrets and private data, because the history becomes public with the repository. A secret-scanning check on pull requests does not replace this audit.
-3. Every planned package name has been re-checked on each first-wave registry, and the fallback in §6.3 applied to any that was taken.
-4. The release support matrix, the official feature set, and the installation documentation agree.
-5. The private rehearsal of the release pipeline has passed for every official target.
+3. A security policy states how to report a vulnerability privately.
+4. The README states the project status and what public development means.
+5. CI workflows use no secrets on pull requests and grant the workflow token read-only permissions by default.
 
-On the release day the order is: make the repository public, perform the first manual publish of each crate, configure Trusted Publishing, then publish the binary release.
+### 12.2 First package release
+
+Packages and binaries are first published at the MVP release. Nothing is published to crates.io, and no binary release is created, before it.
+
+- The release pipeline is rehearsed without publishing: builds for every official target, `cargo publish --dry-run`, and installers tested against artifacts attached to a draft release, which only maintainers can see.
+- Planned crate names are visible in the public repository from the end of Phase 0, but cannot be held before the first publish. They may be taken in the meantime; this risk is accepted, and the fallback in §6.3 applies.
+
+Before the first package release, all of the following must be true:
+
+1. Every planned package name has been re-checked on each first-wave registry, and the fallback in §6.3 applied to any that was taken.
+2. The release support matrix, the official feature set, and the installation documentation agree.
+3. The rehearsal of the release pipeline has passed for every official target.
+4. The license review covers every dependency of the release.
+
+On the release day the order is: perform the first manual publish of each crate, configure Trusted Publishing, then publish the binary release.
 
 ## 13. Trade-offs and consequences
 
 - One official feature set means that a user who needs another adapter must build from source.
 - Not owning the `udc` name on crates.io, PyPI, and npm is a lasting source of confusion that documentation has to manage. A user who guesses the package name from the command installs someone else's software.
 - Each additional target adds CI time, and each native dependency multiplies it.
-- Deferring all public channels to the MVP release means there is no outside feedback on packaging before then.
+- Packages wait for the MVP release, so there is no outside feedback on packaging before then. The source is public earlier, so the design can be discussed.
+- A public repository without packages still attracts issues and expectations. The README states what public development means.
 - The first release requires manual publishing of every crate, because Trusted Publishing cannot be configured earlier.
 
 ## 14. Validation plan
@@ -216,12 +244,12 @@ On the release day the order is: make the repository public, perform the first m
 - For each release and each official target: install through every supported channel in a clean environment, run the version report, run a local Parquet-to-Parquet conversion, and verify the artifact attestation.
 - Confirm that `cargo install udc-cli` with no flags and the prebuilt binary report the same compiled-in adapters.
 - Run the Linux binaries on the oldest distribution that the recorded glibc floor claims to support.
-- Rehearse a complete release privately, including a deliberately interrupted multi-crate publish that is then re-run.
+- Rehearse a complete release without publishing it, using a draft release, including a deliberately interrupted multi-crate publish that is then re-run.
 - Create a job with the previous release, upgrade, and confirm that the job is recovered or rejected with an explicit compatibility error.
 
 ## 15. Ownership boundary
 
-**Owns:** distribution channels, official targets, what the official binary contains, crate and binary naming, release pipeline requirements, artifact provenance, upgrade communication, and the public-release gate.
+**Owns:** distribution channels, official targets, what the official binary contains, crate and binary naming, release pipeline requirements, artifact provenance, upgrade communication, and the gates for source visibility and the first package release.
 
 **Does not own:**
 - Which crates are published and how many, how crates and Cargo features are arranged to produce the official feature set, and dependency review rules — ADR-0011.
