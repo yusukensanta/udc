@@ -9,7 +9,7 @@
 | Document | Product Requirements Document |
 | Version | 0.5.0 |
 | Status | Draft |
-| License | Apache License 2.0 (proposed; subject to dependency/license review) |
+| License | Apache License 2.0 |
 | Development Model | OSS-first |
 | Primary Language | Rust |
 | Target Users | Data Engineers / Data Platform Engineers |
@@ -36,7 +36,7 @@ UDC will reuse mature format, storage, table-protocol, and execution libraries w
 
 **Product principle:** UDC owns schema-mapping policy, job orchestration, validation policy, and user-facing capability reporting. Specialized libraries remain authoritative for the low-level format, storage, and table-protocol behavior they implement.
 
-**Positioning.** Converting between these formats and reaching these storage systems are already served by mature tools (§2.5). UDC's intended contribution is the job layer around a conversion: classifying schema compatibility before data moves, recording validation evidence under published rules, resuming from durably completed work, and publishing only validated output. It delivers these together, as a single binary, for datasets stored as plain files rather than in a table format. Whether enough users need that combination is not yet established; §13.3 defines how it is tested.
+**Positioning.** Converting between these formats and reaching these storage systems are already served by mature tools (§2.5). UDC's intended contribution is the job layer around a conversion: classifying schema compatibility before data moves, recording validation evidence under published rules, resuming from durably completed work, and publishing only validated output. It delivers these together, as a single binary, for datasets stored as plain files rather than in a table format. Whether other users need that combination is not established. UDC is primarily a personal project and does not wait for that answer; §13.3 defines the technical hypotheses that are tested instead.
 
 The initial product is a local CLI and library backed by a modular Rust codebase. The MVP is single-node. Self-hosted service deployment and distributed workers are possible future directions, not MVP commitments.
 
@@ -107,7 +107,7 @@ Three consequences follow.
 
 1. **UDC is not differentiated by conversion or storage reach.** Its distinct part is the job layer around a conversion: pre-flight schema classification, validation evidence under published rules, resume, and publication of validated output, for datasets stored as plain files, in a single binary. Each element exists in some tool. The combination was not found.
 2. **The realistic alternative is a wrapped engine, not a bare one.** An existing engine driven by a script that adds a per-attempt staging prefix, a row-count check, a ledger of completed units, and a completion marker can reproduce much of that job layer. UDC therefore saves integration work; it does not make possible something that was impossible. §13.3 uses this configuration as the reference to measure against.
-3. **The failures are documented; the demand is not.** The failure modes in §2.4 are well supported, most strongly non-atomic job commit on object stores. No direct evidence was found that practitioners want one integrated tool for them. That is an absence of evidence, not evidence of absence. It is carried as an open risk (§16) and tested through the gates in §13.3.
+3. **The failures are documented; the demand is not.** The failure modes in §2.4 are well supported, most strongly non-atomic job commit on object stores. No direct evidence was found that practitioners want one integrated tool for them. That is an absence of evidence, not evidence of absence. UDC is primarily a personal project, so this is not tested by interviews; it is carried as an open risk (§16) and read from issues and adoption once the repository is public (§13.3).
 
 One boundary follows from the first consequence. UDC does not offer a byte-for-byte copy or synchronization of objects between stores. That is served by tools such as rclone and by the providers' own transfer services. Cross-cloud operation is a property of a conversion job, whose source and destination may be on different providers; it is not a product of its own.
 
@@ -717,7 +717,7 @@ No dependency should be considered selected solely because it appears in this ta
 
 The MVP is intended to be distributed and run as a local CLI and reusable Rust library. Its runtime does not require an API server, hosted control plane, database service, or Kubernetes.
 
-The proposed distribution is prebuilt binaries on GitHub Releases plus crates.io packages, starting at the first MVP release. The repository becomes public earlier, at the end of Phase 0, as public development: no stable interfaces, no packages, and no installation channel before the MVP release.
+The proposed distribution is prebuilt binaries on GitHub Releases plus crates.io packages, starting at the first MVP release. The repository becomes public earlier, once the reference configuration of §13.3 runs during Phase 0, as public development: no stable interfaces, no packages, and no installation channel before the MVP release.
 
 - The package name `udc` belongs to unrelated projects on crates.io, PyPI, and npm. The proposed CLI package is `udc-cli`, installing a command named `udc`; fallback names are prepared in ADR-0019.
 - Every channel ships one official feature set, which matches the release support matrix.
@@ -775,7 +775,7 @@ The roadmap is capability-driven, not strictly time-driven. Phases identify sequ
 
 | Phase | Deliverable |
 |---|---|
-| Phase 0 | Core contracts, local Parquet inspection/conversion, reproducible baseline, and the reference configuration with the first evidence gate (§13.3). The repository becomes public at its end ([ADR-0019](adr/ADR-0019-packaging-and-distribution.md)) |
+| Phase 0 | Evidence first: the reference configuration and the interruption tests of the first evidence gate (H2, §13.3). Then a minimal vertical slice: local Parquet inspection and conversion through the schema classification and the file-format adapter contract, with a reproducible baseline. The repository becomes public once the reference configuration runs ([ADR-0019](adr/ADR-0019-packaging-and-distribution.md)) |
 | Phase 1 | CSV / JSON adapters and basic schema mapping |
 | Phase 2 | Validation semantics including normalization rules version 1 and L4, durable local job/work-unit recovery, and explicit resume |
 | Phase 3 | S3 / GCS integration and verified generic output publication |
@@ -785,7 +785,7 @@ The roadmap is capability-driven, not strictly time-driven. Phases identify sequ
 | Phase 7 | Avro / ORC / Arrow IPC and additional format coverage |
 | Phase 8 | Rewrite of an existing Iceberg table: data-file rewrite with snapshot pinning, delete handling, conflict detection, and native commit |
 
-Phases 0–1 build conversion, which existing tools already provide (§2.5). The job layer that distinguishes UDC arrives in Phases 2–3. The evidence gate at the end of Phase 0 exists so that this investment is checked before it is made. After the MVP, the table path (Phases 5–6) is sequenced ahead of additional file formats (Phase 7), because more formats repeat what existing tools provide and the table path does not.
+Phases 0–1 build conversion, which existing tools already provide (§2.5). The job layer that distinguishes UDC arrives in Phases 2–3. The evidence gate at the end of Phase 0 exists so that this investment is checked before it is made. Within Phase 0 the evidence work therefore comes first: it needs no Rust code, and a gate that is not met changes what the Rust code should be. The Rust work of Phase 0 is a minimal vertical slice, not the full set of contracts; the job state and publication abstractions are built in the phases that use them. After the MVP, the table path (Phases 5–6) is sequenced ahead of additional file formats (Phase 7), because more formats repeat what existing tools provide and the table path does not.
 
 Distributed execution, SDKs, and integrations with external systems are not roadmap phases. They are future considerations (§14) and are scheduled only when a concrete workload or the adoption evidence of §13.3 calls for them.
 
@@ -828,36 +828,36 @@ GitHub Stars are supplementary indicators, not the primary success metric.
 
 §2.5 identifies where UDC could add value. It does not show that users need it. The hypotheses below turn that question into things that can be checked.
 
+UDC is primarily a personal project. Whether other users need it is therefore not tested by interviewing practitioners: H1 and H5 are open questions, not gates, and are read from issues and adoption once the repository is public (§13.2). The technical hypotheses H2 to H4 remain gates, because their evidence can be produced within the project and a result that is not met changes the design.
+
 They are assessed against a **reference configuration**: an existing single-binary engine driven by a script that adds a per-attempt staging prefix, a row-count check with read-back, a ledger of completed units, and a completion marker, run on the MVP reference demonstration (§8.1).
 
 | ID | Hypothesis | Evidence | Gate |
 |---|---|---|---|
-| H1 | Some users publish converted datasets as plain files rather than through a table format, and partial or unverified output is a real cost to them | Conversations with practitioners outside the project; public issue reports or write-ups describing the problem | End of Phase 0 |
+| H1 | Some users publish converted datasets as plain files rather than through a table format, and partial or unverified output is a real cost to them | Issues, discussions, and adoption once the repository is public; public write-ups describing the problem | Not a gate |
 | H2 | The reference configuration is costly to build or leaves gaps in practice | Build it. Interrupt writes at several points against a disposable bucket. Record what remains at the destination (partial objects, pending multipart uploads) and what the script had to handle | End of Phase 0 |
 | H3 | UDC holds a memory bound that the reference configuration does not | Peak resident memory of both on a dataset substantially larger than the budget (§8.4; ADR-0004 proof of concept) | Before ADR-0004 is finalized |
 | H4 | Value-level validation inside the job finds faults that L1 and L2 miss, at an acceptable cost | Fault-injection results and the cost of L4 relative to the same conversion without validation (ADR-0006) | End of Phase 2 |
-| H5 | Users moving plain files into a table format want the schema check before registration, or validation tied to the commit, and do not get it from the table format's own tooling | Conversations with practitioners who have run such a migration; issue reports on registered files that did not match the table | Before Phase 5 starts |
+| H5 | Users moving plain files into a table format want the schema check before registration, or validation tied to the commit, and do not get it from the table format's own tooling | Issues and adoption once the repository is public; public reports of registered files that did not match the table | Not a gate |
 
 Rules for the gates:
 
 - The bar for a hypothesis is written down before its evidence is collected, so that the result cannot move the bar.
 - A hypothesis without evidence at its gate counts as not supported, and is recorded as such in this document.
-- If H1 or H2 is not supported at the end of Phase 0, the maintainers choose one of the following before Phase 2 starts and record the choice here:
+- If H2 is not supported at the end of Phase 0, the maintainers choose one of the following before Phase 2 starts and record the choice here:
   1. Narrow UDC to the job layer over an existing engine used as the execution backend. This feeds ADR-0004.
   2. Narrow UDC to validating conversions performed by other tools.
   3. Continue as planned, with the reason stated.
   4. Stop.
 - If H3 is not supported, bounded memory stays a requirement (NFR-01) but is no longer described as a differentiator.
 - If H4 is not supported, the L4 commitment in §8.2 is reconsidered before the MVP release.
-- If H5 is not supported, Phases 5–6 are reduced to metadata inspection or reordered behind Phase 7.
+- H1 and H5 do not gate any phase. The order of Phases 5–7 follows the author's own need, informed by issues and adoption once they exist.
 
-Proposed starting bars, to be confirmed by the maintainers before collection begins:
+Bars. The H2 bar was confirmed on 2026-11-16, before its evidence was collected. The H3 and H4 bars are proposals, to be confirmed before their evidence is collected.
 
-- **H1:** at least five practitioners outside the project independently describe publishing plain-file datasets from conversion jobs and a cost caused by partial or unverified output.
 - **H2:** at least one interruption case leaves output visible to readers, or leaves state that the script cannot reconcile without implementing the equivalent of acceptance (ADR-0013) and publication (ADR-0017).
 - **H3:** the reference configuration exceeds the memory budget on the test dataset and UDC stays within it.
 - **H4:** L4 detects every fault class listed in the ADR-0006 validation plan, and its cost stays within a bound set before measurement.
-- **H5:** at least three practitioners outside the project independently describe a plain-file-to-table migration in which a mismatch was found after registration, or in which validation had to be built separately.
 
 After the first release, the adoption metrics in §13.2 are read against these hypotheses: use of validation, resume, and publication counts as evidence for the job layer, and use of conversion alone does not.
 
@@ -903,7 +903,7 @@ Potential future evaluations include distributed execution with remote workers, 
 | Risk | Mitigation |
 |---|---|
 | Existing tools already provide conversion, storage reach, and single-binary distribution (§2.5) | Do not position UDC on those; concentrate differentiation on the job layer for plain-file datasets; measure against the reference configuration (§13.3) |
-| Demand for an integrated job layer is unproven | Evidence gates H1 and H2 at the end of Phase 0, with the recorded options in §13.3 if they are not supported |
+| Demand for an integrated job layer is unproven | Primarily a personal project, so demand does not gate the work. H1 and H5 are read from issues and adoption once the repository is public (§13.3); the technical gate H2 still applies at the end of Phase 0 |
 | The gap narrows as engines fail loudly and table formats spread | Repeat the existing-tool review before each release that changes positioning; apply the job layer to table destinations through the plain-file-to-table operations (§5.2, ADR-0015) |
 | The plain-file-to-table path depends on append and commit support in a table library and on a catalog contract that has no ADR yet | Gate each operation on tested adapter capabilities; write the catalog ADR before Phase 6; report a missing capability as unsupported instead of emulating it |
 | Differentiating validation arrives too late or costs too much | Normalization rules version 1 and L4 are MVP commitments; fault detection and cost are measured (H4) |
