@@ -1,0 +1,80 @@
+name: reference-config
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tests/benchmarks/reference-config/**"
+      - "tools/s3/compose.yml"
+      - ".github/workflows/reference-config.yml"
+  pull_request:
+    paths:
+      - "tests/benchmarks/reference-config/**"
+      - "tools/s3/compose.yml"
+      - ".github/workflows/reference-config.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reference-config-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  h2:
+    name: Reference configuration and H2 interruption tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tests/benchmarks/reference-config
+    env:
+      S3_ENDPOINT: http://127.0.0.1:19000
+      # Fixed test values for the local container in tools/s3/compose.yml; not secrets.
+      AWS_ACCESS_KEY_ID: udc-local-access
+      AWS_SECRET_ACCESS_KEY: udc-local-secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.8"
+          working-directory: tests/benchmarks/reference-config
+          enable-cache: true
+
+      - name: Lint
+        run: |
+          uv run --locked ruff format --check .
+          uv run --locked ruff check .
+
+      - name: Fetch DuckDB
+        run: uv run --locked python -m refconf fetch-duckdb
+
+      - name: Start RustFS
+        working-directory: tools/s3
+        run: docker compose up -d --wait
+
+      - name: Test
+        run: uv run --locked pytest -q
+
+      - name: Run the H2 scenarios
+        run: |
+          uv run --locked python -m refconf h2 --out h2.md
+          {
+            echo "## H2 interruption tests"
+            echo
+            cat h2.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: RustFS logs
+        if: failure()
+        working-directory: tools/s3
+        run: docker compose logs rustfs
+
+      - name: Stop RustFS
+        if: always()
+        working-directory: tools/s3
+        run: docker compose down -v
