@@ -28,7 +28,7 @@ ADR_ID = re.compile(r"ADR-(\d{4})")
 PLACEHOLDER = re.compile(r"(?:ADR-(\d{4}) )?§\{([^}]+)\}")
 
 
-CODE_SPAN = re.compile(r"(`[^`\n]*`)")
+CODE_SPAN = re.compile(r"`[^`\n]*`")
 
 
 class NormalizeError(Exception):
@@ -36,18 +36,29 @@ class NormalizeError(Exception):
 
 
 def sub_outside_code(pattern: re.Pattern[str], replace, text: str) -> str:
-    """Apply a substitution everywhere except inside code spans and fenced code blocks."""
+    """Apply a substitution to matches that start outside code spans and fenced code blocks.
+
+    A match is judged by where it starts, so a placeholder whose section title contains a
+    code span, such as §{`udc validate`}, is still replaced, while a placeholder shown as
+    code, such as `§{Section title}`, is left alone.
+    """
     out, fenced = [], False
     for line in text.split("\n"):
         if line.startswith("```"):
             fenced = not fenced
             out.append(line)
-        elif fenced:
+            continue
+        if fenced:
             out.append(line)
-        else:
-            parts = CODE_SPAN.split(line)
-            parts[::2] = [pattern.sub(replace, part) for part in parts[::2]]
-            out.append("".join(parts))
+            continue
+        spans = [m.span() for m in CODE_SPAN.finditer(line)]
+
+        def guarded(match: re.Match[str], spans=spans) -> str:
+            if any(start <= match.start() < end for start, end in spans):
+                return match.group(0)
+            return replace(match)
+
+        out.append(pattern.sub(guarded, line))
     return "\n".join(out)
 
 

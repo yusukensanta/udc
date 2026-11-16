@@ -40,6 +40,13 @@ TAIL_ORDER = (
     "Related ADRs",
 )
 VALIDATION_LEVELS = range(1, 6)
+# A sentence or table cell that ends on one of these words was most likely cut off.
+DANGLING_END = re.compile(
+    r"\b(?:a|an|the|is|are|was|were|be|of|and|or|to|by|with|for|that|which|than|as|in|on|at"
+    r"|from|its|their)$",
+    re.IGNORECASE,
+)
+TABLE_SEPARATOR = re.compile(r"^\|[\s:|-]+\|?$")
 
 # Wording that earlier revisions replaced. A match means an old term came back.
 RETIRED = {
@@ -53,6 +60,7 @@ RETIRED = {
     r"visibility[- ]commit": "use 'publication mode'",
     r"Any format\. Any cloud": "retired tagline",
     r"interoperability platform": "retired positioning",
+    r"public-release gate": "split into source visibility and the first package release (ADR-0019)",
 }
 
 ADR_REF = re.compile(r"(?:ADR-(\d{4}) )?§(\d+(?:\.\d+)?)")
@@ -460,6 +468,38 @@ def check_retired_terms(docs: DocSet) -> list[str]:
     return errors
 
 
+def check_truncated_text(docs: DocSet) -> list[str]:
+    """Paragraphs, list items, and table cells do not end mid-sentence.
+
+    Table header rows are skipped: a column title such as 'Defined by' is not a sentence.
+    """
+    errors = []
+    for path, text in docs.texts.items():
+        lines = text.split("\n")
+        fenced = False
+        for number, line in enumerate(lines, 1):
+            if line.startswith("```"):
+                fenced = not fenced
+                continue
+            stripped = line.strip()
+            if fenced or not stripped or stripped.startswith("#"):
+                continue
+            if stripped.startswith("|"):
+                following = lines[number].strip() if number < len(lines) else ""
+                if TABLE_SEPARATOR.match(stripped) or TABLE_SEPARATOR.match(following):
+                    continue
+                pieces = [cell.strip() for cell in stripped.strip("|").split("|")]
+            else:
+                pieces = [stripped]
+            for piece in pieces:
+                # A cut-off sentence has several words; a one-word cell such as 'A' is not one.
+                if len(piece.split()) >= 3 and DANGLING_END.search(piece):
+                    errors.append(
+                        f"{docs.rel(path)}:{number}: text ends mid-sentence: ...{piece[-50:]!r}"
+                    )
+    return errors
+
+
 def check_readme_range(docs: DocSet) -> list[str]:
     """The README states the ADR range that actually exists."""
     readme = docs.texts.get(docs.root / "README.md", "")
@@ -484,6 +524,7 @@ CHECKS = (
     check_adr_0001_maps,
     check_vocabulary,
     check_retired_terms,
+    check_truncated_text,
     check_readme_range,
 )
 

@@ -83,6 +83,15 @@ def test_placeholders_shown_as_code_are_left_alone(tree):
     assert normalize_adrs.normalize(tree) == {}
 
 
+def test_placeholder_whose_title_contains_code_is_resolved(tree):
+    edit(tree, A13, "### 6.1 Job state", "### 6.1 `Job` state")
+    edit(tree, A13, "See §6.1 and", "See §{`Job` state} and")
+    edit(tree, A8, "(ADR-0013 §6.1)", "(ADR-0013 §{`Job` state})")
+    changed = normalize_adrs.normalize(tree)
+    assert "See §6.1 and" in changed[tree / A13]
+    assert "(ADR-0013 §6.1)" in changed[tree / A8]
+
+
 def test_check_mode_reports_without_writing(tree, capsys):
     path = tree / A8
     edit(tree, A8, "## 5. Rationale", "## Rationale")

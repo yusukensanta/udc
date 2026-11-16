@@ -32,6 +32,7 @@ uv run ruff format . && uv run ruff check .
 - **ADR-0001.** Its scope map has a row for every ADR, and the PRD repeats its ownership table row for row.
 - **Shared terms.** State names exist in the state tables of ADR-0013, error categories in the table of ADR-0008, validation levels are L1 to L5, and roadmap phases exist in the PRD roadmap.
 - **Retired wording.** Terms that an earlier revision replaced have not come back.
+- **Truncated text.** No paragraph, list item, or table cell ends on a word such as "is", "the", or "of", which usually means the sentence was cut off. Table header rows and code are not checked.
 - **README.** The stated ADR range matches the files.
 
 ## Adding or moving a section

@@ -77,6 +77,9 @@ BREAKAGES = [
         "retired wording 'Job Coordinator'",
     ),
     ("README.md", "ADR-0001 to ADR-0013", "ADR-0001 to ADR-0019", "the last ADR is 0013"),
+    (A8, "Because of reasons.", "The number of times a row occurs is", "text ends mid-sentence"),
+    (A8, "| A | s | l |", "| A | s | limited by the |", "text ends mid-sentence"),
+    (A8, "- A cost.", "- A cost that grows with", "text ends mid-sentence"),
 ]
 
 
@@ -113,6 +116,17 @@ def test_file_names_ending_in_md_are_not_states(tree):
 def test_placeholders_shown_as_code_are_not_reported(tree):
     edit(tree, "CONTRIBUTING.md", "Roadmap", "Write `§{Section title}`. Roadmap")
     edit(tree, A8, "Because of reasons.", "```\nSee §{Section title}.\n```")
+    assert check_docs.run(tree) == []
+
+
+def test_short_cells_are_not_sentences(tree):
+    edit(tree, A8, "| B | s | l |", "| B | s | a |")
+    assert check_docs.run(tree) == []
+
+
+def test_table_headers_and_code_may_end_on_any_word(tree):
+    edit(tree, A8, "| Option | Strengths | Limitations |", "| Option | Owned by | Defined in |")
+    edit(tree, A8, "Because of reasons.", "Because of reasons.\n\n```\nvalue is\n```")
     assert check_docs.run(tree) == []
 
 
