@@ -19,6 +19,8 @@ docs/
 tools/
   docs/            Consistency checks for the documentation, run in CI
   s3/              S3 behaviour tests and a disposable local S3 store (RustFS), run in CI
+tests/
+  benchmarks/reference-config/  The reference configuration and the H2 interruption tests (PRD §13.3)
 ```
 
 The planned crate and directory organization is illustrated in [PRD §11.2](docs/PRD.md#112-illustrative-repository-organization). Those directories do not exist yet; each will be added when the functionality it holds is implemented.
