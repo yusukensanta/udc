@@ -60,11 +60,17 @@ The intended conceptual structure is:
 
 This is a design direction, not a commitment to a specific scheduler crate or persistent state database.
 
-## 5. Domain model
+## 5. Rationale
 
-This section defines the processing concepts and their identity rules. The persisted record for each concept, and its states, are defined only by ADR-0013 §5.
+Sequential processing leaves the machine idle and restarts the whole job after any failure. Distributed workers from the first release would require a coordinator, leases, and a worker protocol before a single conversion is useful. Delegating scheduling to an external engine would tie recovery, validation, and publication to that engine's semantics, and those are the part of a job that UDC is positioned on ([PRD §2.5](../PRD.md#25-existing-tools-and-where-udc-fits)).
 
-### 5.1 Job
+A single-node runtime over independent Work Units gives bounded memory, retry of one unit instead of the job, and a simple installation. Because plans and Work Units are serializable data and not process-local closures, the same model can later be executed by remote workers (ADR-0018) without changing what a job means. Owning the job layer and not the batch processing is also what keeps the execution backend replaceable (ADR-0004).
+
+## 6. Domain model
+
+This section defines the processing concepts and their identity rules. The persisted record for each concept, and its states, are defined only by ADR-0013 §6.
+
+### 6.1 Job
 
 A Job is the immutable user intent plus execution policy. It includes:
 
@@ -82,7 +88,7 @@ A Job is the immutable user intent plus execution policy. It includes:
 
 Credentials and secret values must not be embedded in the serialized job. The job contains credential references or provider identity configuration only.
 
-### 5.2 Plan
+### 6.2 Plan
 
 A Plan is a deterministic, inspectable description of the work to be done. It includes:
 
@@ -98,7 +104,7 @@ The plan must distinguish **known totals** from **unknown totals**. It must supp
 
 If the source is mutable and no consistent snapshot/version can be pinned, UDC must disclose that the job is operating against a best-effort listing rather than claiming snapshot consistency.
 
-### 5.3 Work Unit
+### 6.3 Work Unit
 
 A Work Unit is the smallest independently schedulable unit for which UDC can define input boundaries, output ownership, retry behavior, and completion criteria. Its format-native input boundary must originate from the safe SplitDescriptor contract in [ADR-0014](ADR-0014-file-format-adapter-contract.md); the Scheduler must not derive arbitrary splits itself.
 
@@ -119,15 +125,15 @@ The unit ID must not depend on worker assignment, attempt number, or execution o
 
 A Work Unit must not be split at arbitrary byte offsets unless the underlying encoding and reader support safe independent decoding. The format adapter reports split boundaries and whether a split is independently readable.
 
-### 5.4 Attempt
+### 6.4 Attempt
 
 An Attempt is one execution of a Work Unit. It writes to its own staging namespace and reports a structured outcome. Its recorded fields and states are defined by ADR-0013.
 
 At-least-once execution is expected. UDC does not promise exactly-once execution. Instead, it must make repeated attempts safe through isolated staging, idempotent output ownership, validation, and a controlled commit/publish step.
 
-## 6. Component responsibilities
+## 7. Component responsibilities
 
-### 6.1 Planner
+### 7.1 Planner
 
 The Planner:
 
@@ -140,7 +146,7 @@ The Planner:
 
 Planning must use pagination and bounded metadata concurrency. For extremely large listings, the Planner may append plan fragments incrementally and mark discovery completion explicitly.
 
-### 6.2 Scheduler
+### 7.2 Scheduler
 
 The Scheduler:
 
@@ -154,31 +160,33 @@ The Scheduler:
 
 The initial Scheduler is an in-process component. Its API should operate on serializable work descriptors, not arbitrary in-memory closures.
 
-### 6.3 Worker
+### 7.3 Worker
 
 A Worker executes one attempt:
 
 `read -> decode -> transform (optional) -> encode -> stage -> validate`
 
-The validate step includes reading the staged output back where ADR-0006 requires it. That read is admitted under the same resource budgets as any other I/O (§8).
+In a validation-only job (ADR-0013 §7.4) a Work Unit stops after decoding: it computes evidence for its part of one dataset, and nothing is encoded or staged.
+
+The validate step includes reading the staged output back where ADR-0006 requires it. That read is admitted under the same resource budgets as any other I/O (§9).
 
 A worker should be stateless between attempts. It receives a Work Unit descriptor, a resource budget/lease, and a staging destination. It reports structured progress and outcome.
 
-Worker code must not independently decide global retries or publish a whole job. The Scheduler owns retry scheduling, and publication is invoked only as described in §6.5.
+Worker code must not independently decide global retries or publish a whole job. The Scheduler owns retry scheduling, and publication is invoked only as described in §7.5.
 
-### 6.4 Job State Store boundary
+### 7.4 Job State Store boundary
 
 The processing architecture depends on a durable JobStateStore, but does not define its persisted schema or legal transitions. Those are exclusively owned by [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md). The Scheduler invokes the State Store contract to claim work and report outcomes; it must not maintain a competing authoritative state machine.
 
-### 6.5 Publication step
+### 7.5 Publication step
 
 Orchestration decides *when* publication happens: once per job, after every required Work Unit has an accepted Attempt and the required job-level validation has succeeded. It does not define *how* output becomes visible.
 
-- Generic file/dataset output is published by the Generic Publisher. Its staging layout, output manifest, and publication modes are defined only by ADR-0017. Object placement during publication is admitted under the same resource budgets as any other I/O (§8).
+- Generic file/dataset output is published by the Generic Publisher. Its staging layout, output manifest, and publication modes are defined only by ADR-0017. Object placement during publication is admitted under the same resource budgets as any other I/O (§9).
 - Table-format output is committed by the TableFormatAdapter through the table's native protocol (ADR-0015). The Generic Publisher must not bypass snapshot or catalog transaction semantics.
 - Publication intent and outcome are recorded through the JobStateStore (ADR-0013).
 
-## 7. Work-unit granularity and format capabilities
+## 8. Work-unit granularity and format capabilities
 
 Work-unit granularity is format- and workload-specific:
 
@@ -192,13 +200,13 @@ Work-unit granularity is format- and workload-specific:
 
 For Parquet, the file footer and metadata describe row groups and column chunks. Row group is a natural map-style unit where the selected reader supports independent access; column chunk/page are more commonly I/O and decoding granularities. Do not assume each page or arbitrary byte range is an independent output work unit. [Parquet format structure](https://github.com/apache/parquet-format).
 
-The capability descriptor that reports these properties is defined by ADR-0014 §5.1. Planning and scheduling consume it, in particular: metadata-only inspection, safe split enumeration and split independence, range-read and streaming-decode support, row and byte estimates, projection and predicate pushdown, independently owned output objects, and per-reader and per-writer concurrency constraints.
+The capability descriptor that reports these properties is defined by ADR-0014 §6.1. Planning and scheduling consume it, in particular: metadata-only inspection, safe split enumeration and split independence, range-read and streaming-decode support, row and byte estimates, projection and predicate pushdown, independently owned output objects, and per-reader and per-writer concurrency constraints.
 
 The Scheduler chooses among adapter-provided splits; it must not invent unsafe splits.
 
-## 8. Bounded streaming and resource governance
+## 9. Bounded streaming and resource governance
 
-### 8.1 Resource dimensions
+### 9.1 Resource dimensions
 
 UDC must govern at least:
 
@@ -213,7 +221,7 @@ UDC must govern at least:
 - Temporary disk/spill budget.
 - Per-job and process-wide resource budgets.
 
-### 8.2 Byte-aware memory admission
+### 9.2 Byte-aware memory admission
 
 Queue capacity measured only in number of batches is insufficient because a batch's memory footprint varies with row width, nested data, string/binary payloads, and buffer sharing.
 
@@ -223,21 +231,21 @@ Arrow exposes array-buffer size estimates such as `RecordBatch::get_array_memory
 
 The memory budget is not equal to the entire configured process limit. It must reserve headroom for runtime, metadata, decompression/encoding scratch space, allocator fragmentation, and libraries that allocate outside the tracked pool.
 
-### 8.3 Backpressure
+### 9.3 Backpressure
 
 All producer-consumer queues must be bounded. When downstream stages are slow, upstream production waits or reduces admission. An unbounded queue is prohibited in the core data path.
 
 Tokio's guidance explicitly warns that unbounded queues can consume all available memory; bounded channels and explicit concurrency are required. [Tokio channels](https://tokio.rs/tokio/tutorial/channels).
 
-### 8.4 Separate I/O and CPU pools
+### 9.4 Separate I/O and CPU pools
 
 Network I/O concurrency and CPU parallelism are independent tuning dimensions. CPU-heavy decompression, decoding, encoding, and hashing must not starve async I/O workers. Use bounded CPU execution capacity and independent I/O semaphores.
 
-### 8.5 Adaptive controls
+### 9.5 Adaptive controls
 
 The first implementation should use explicit configurable limits and conservative defaults. Adaptive concurrency may be added after reliable signals exist (queue wait, throughput, throttling, error rate, memory pressure). Do not introduce an opaque autoscaler before deterministic manual limits and metrics work.
 
-## 9. Scheduling, throughput, and skew
+## 10. Scheduling, throughput, and skew
 
 The Scheduler should use a bounded ready queue and a bounded in-flight set. It should not create one task for every discovered object.
 
@@ -253,9 +261,9 @@ The first scheduler can use a simple policy (for example, bounded concurrency wi
 
 The system must avoid a few huge units monopolizing all slots while millions of small units wait. Conversely, it should not starve large units indefinitely. Fairness and throughput trade-offs must be measurable.
 
-## 10. Many-small-file and few-large-file strategies
+## 11. Many-small-file and few-large-file strategies
 
-### 10.1 Many small files
+### 11.1 Many small files
 
 - Paginate listings and process metadata incrementally.
 - Batch metadata operations when provider APIs allow it.
@@ -264,7 +272,7 @@ The system must avoid a few huge units monopolizing all slots while millions of 
 - Support output compaction/aggregation with configurable target file sizes.
 - Do not create a single enormous in-memory list of paths.
 
-### 10.2 Few large files
+### 11.2 Few large files
 
 - Stream sequentially where format readers require it.
 - Use row-group or other safe intra-file splits when the adapter supports them.
@@ -272,15 +280,15 @@ The system must avoid a few huge units monopolizing all slots while millions of 
 - Keep batch and decompression memory bounded.
 - Avoid excessive concurrent range reads that amplify request costs or overload storage.
 
-### 10.3 Output sizing and partitioning
+### 11.3 Output sizing and partitioning
 
 Target output file size must be configurable. It is a workload-specific optimization, not a universal magic number. UDC should expose file count and size distribution so users can tune downstream scan efficiency. Partition fan-out must be bounded to avoid generating many tiny output files.
 
-## 11. Completion, failure, and publication boundaries
+## 12. Completion, failure, and publication boundaries
 
 The authoritative Job, Work Unit, Attempt, and Publication state machines, legal transitions, atomicity, durability, and crash-recovery protocol are defined only by [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md). This section describes processing-layer behavior that uses those guarantees.
 
-### 11.1 Work Unit completion boundary
+### 12.1 Work Unit completion boundary
 
 A Work Unit is eligible for durable completion only after:
 1. Its Attempt has written output to isolated staging.
@@ -288,13 +296,13 @@ A Work Unit is eligible for durable completion only after:
 3. The configured validation policy has produced the required evidence.
 4. ADR-0013 accepts exactly one Attempt and durably records the output reference.
 
-### 11.2 Checkpoint granularity
+### 12.2 Checkpoint granularity
 
 For this ADR, a checkpoint means the boundary between independently completed Work Units. Safe resume from inside a Work Unit is format-adapter-specific and is not assumed. ADR-0013 defines how completed units are persisted and recovered.
 
 For mutable sources, the Plan must pin object versions/ETags or state an explicit best-effort consistency model. A retry should restart the whole Work Unit unless the format adapter exposes a safe deterministic resume position.
 
-### 11.3 Idempotency and duplicate attempts
+### 12.3 Idempotency and duplicate attempts
 
 - Work Unit identity is stable across Attempts.
 - Every Attempt writes to isolated output ownership.
@@ -303,7 +311,7 @@ For mutable sources, the Plan must pin object versions/ETags or state an explici
 - Late or duplicate Attempts cannot overwrite accepted output.
 - Error classification and retry budget are owned by ADR-0008.
 
-### 11.4 Work Unit failure and job outcome
+### 12.4 Work Unit failure and job outcome
 
 A Work Unit becomes FAILED when its error is not retryable, its retry budget is exhausted, or a validation mismatch repeats on its one further Attempt (ADR-0008). A job with a FAILED required Work Unit cannot proceed to job-level validation or publication.
 
@@ -313,15 +321,15 @@ The default Scheduler policy on the first FAILED Work Unit is `fail-fast`:
 2. Let in-flight Attempts reach a durable outcome, either acceptance through the normal path or cancellation, within the configured shutdown deadline.
 3. Report the job as FAILED through the JobStateStore, with the failed units and their error categories.
 
-Completed Work Units keep their accepted output. Failing the job does not roll them back or delete their staged objects. Whether and how that completed work is reused is defined by the explicit-resume contract in ADR-0013 §9.
+Completed Work Units keep their accepted output. Failing the job does not roll them back or delete their staged objects. Whether and how that completed work is reused is defined by the explicit-resume contract in ADR-0013 §10.
 
 A `continue` policy, which keeps processing independent Work Units after a failure so that the failure report is complete and a later resume has less left to do, is a candidate option and not an MVP requirement. Under either policy nothing is published while a required Work Unit is FAILED.
 
-### 11.5 Publication
+### 12.5 Publication
 
-Orchestration invokes publication as described in §6.5. The protocol is owned by ADR-0017 for generic output and by ADR-0015 for table-native commits. Storage operations and conditional-write capabilities are owned by ADR-0005, validation semantics by ADR-0006, and the publication record with its recovery references by ADR-0013.
+Orchestration invokes publication as described in §7.5. The protocol is owned by ADR-0017 for generic output and by ADR-0015 for table-native commits. Storage operations and conditional-write capabilities are owned by ADR-0005, validation semantics by ADR-0006, and the publication record with its recovery references by ADR-0013.
 
-## 12. Scale-out boundary
+## 13. Scale-out boundary
 
 The MVP is one process on one node. It should nevertheless use:
 
@@ -337,7 +345,7 @@ A future distributed coordinator would add leases, heartbeats, worker registrati
 
 Do not promise that the single-node manifest is already a distributed state store. Its abstraction should preserve the option, while its first implementation can remain local and single-writer.
 
-## 13. Observability and operational controls
+## 14. Observability and operational controls
 
 Instrument names and types, cardinality and redaction rules, and export are owned by ADR-0010. The processing layer must supply at least these signals:
 
@@ -351,7 +359,7 @@ Instrument names and types, cardinality and redaction rules, and export are owne
 
 The cardinality and redaction rules of ADR-0010 apply to all of these signals; in particular, object paths, partition values, and job IDs are not metric labels.
 
-## 14. Failure model
+## 15. Failure model
 
 The architecture must explicitly handle:
 
@@ -368,7 +376,7 @@ The architecture must explicitly handle:
 
 Retry eligibility and budgets follow ADR-0008: only eligible categories are retried, within attempt and time budgets, and deterministic Data and Compatibility errors fail fast. A process crash must leave outputs staged, not visible as a successful dataset.
 
-## 15. Trade-offs and consequences
+## 16. Trade-offs and consequences
 
 - Planning, manifests, and state transitions create metadata and implementation complexity.
 - Format adapters expose different safe split capabilities; there is no universal split API that makes arbitrary data splittable.
@@ -377,11 +385,11 @@ Retry eligibility and budgets follow ADR-0008: only eligible categories are retr
 - Single-node scale-out readiness does not automatically provide distributed correctness. Multi-writer state, leases, consistency, and worker versioning are scoped by ADR-0018.
 - Simpler static limits are less adaptive but easier to reason about and benchmark.
 
-## 16. Validation plan
+## 17. Validation plan
 
 Benchmarks must cover more than one large Parquet file.
 
-### 16.1 Workload profiles
+### 17.1 Workload profiles
 
 | Profile | Shape | What it validates |
 |---|---|---|
@@ -393,11 +401,11 @@ Benchmarks must cover more than one large Parquet file.
 | Throttled source | Provider throttling/timeouts | Retry budget and adaptive limits |
 | Failure injection | Kill process during every major stage | Recovery and publication safety |
 
-### 16.2 Metrics
+### 17.2 Metrics
 
 Measure end-to-end throughput and cost per TiB; peak RSS; in-flight bytes; CPU utilization; network throughput; object requests/sec; task count; queue wait; retries; time spent in each stage; output file count/size distribution; and recovery time.
 
-### 16.3 Acceptance criteria
+### 17.3 Acceptance criteria
 
 - Peak memory remains within the configured process budget plus documented runtime/allocator headroom as total input size increases.
 - Queue depth, in-flight bytes, active requests, and task count remain bounded under slow-sink and throttling tests.
@@ -409,7 +417,7 @@ Measure end-to-end throughput and cost per TiB; peak RSS; in-flight bytes; CPU u
 
 Do not claim PB-scale support from a single-node benchmark. Scale claims must specify dataset shape, worker count, resource budget, cloud topology, and throughput.
 
-## 17. Ownership boundary
+## 18. Ownership boundary
 
 **Owns:** planning, work-unit granularity selection, scheduling policy and fairness, the worker contract, resource budgets, job failure policy, and the point at which the job workflow invokes validation and publication.
 
@@ -425,7 +433,7 @@ Do not claim PB-scale support from a single-node benchmark. Scale claims must sp
 - Telemetry instrumentation and cardinality rules — ADR-0010.
 - Distributed coordination — ADR-0018.
 
-## 18. Revisit conditions
+## 19. Revisit conditions
 
 Revisit this ADR when:
 - benchmarks show the single-node design cannot meet target throughput despite tuning;
@@ -434,7 +442,7 @@ Revisit this ADR when:
 - table-format operations require transaction-aware planning beyond the file-level model;
 - measured source/destination constraints require new scheduling or cost policies.
 
-## 19. References
+## 20. References
 
 - [Apache Parquet format](https://github.com/apache/parquet-format)
 - [Arrow Rust RecordBatch memory-size API](https://arrow.apache.org/rust/arrow/record_batch/struct.RecordBatch.html)
@@ -442,7 +450,7 @@ Revisit this ADR when:
 - [Amazon S3 multipart upload limits](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
 - [Apache Iceberg specification](https://iceberg.apache.org/spec/)
 
-## 20. Related ADRs
+## 21. Related ADRs
 
 - [ADR-0004: Execution Engine Selection](ADR-0004-execution-engine-selection.md)
 - [ADR-0005: Storage Abstraction](ADR-0005-storage-abstraction.md)

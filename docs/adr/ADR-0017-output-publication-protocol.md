@@ -53,15 +53,15 @@ Do not treat prefix existence or a successful rename as proof of publication.
 |---|---|---|
 | Protects | Prefix-listing consumers, and any other consumer | Reference-aware consumers only |
 | How output becomes visible | After validation, each object in the output manifest is placed under the destination prefix; a completion marker is written last | A publication reference is switched to the output manifest by one conditional update; the objects stay where they were staged |
-| Guarantee | **Validated before visible** (§6.1) | **All or nothing** (§7.1) |
+| Guarantee | **Validated before visible** (§7.1) | **All or nothing** (§8.1) |
 | Appearance of the object set | Not atomic: a consumer that lists during promotion can read a subset | Atomic for a reference-aware consumer |
 | Replacing an existing dataset | Not offered | Supported, by switching the reference |
 | Extra copy of the output | One provider-side copy on object stores; none on a local filesystem | None |
-| MVP | Required; the default | Optional (§7.3) |
+| MVP | Required; the default | Optional (§8.3) |
 
 Promotion mode is the default because it protects the consumers a plain-file dataset most often has. Its guarantee is weaker than all-or-nothing, and this ADR states the difference instead of hiding it.
 
-If a destination cannot provide the primitives a mode requires (§9), UDC rejects the job at planning time. It does not fall back to writing directly into the destination prefix.
+If a destination cannot provide the primitives a mode requires (§10), UDC rejects the job at planning time. It does not fall back to writing directly into the destination prefix.
 
 ### 4.3 The Generic Publisher
 
@@ -69,24 +69,32 @@ The component that executes this protocol is the **Generic Publisher**. This ADR
 
 The publication target and the publication mode are data-semantics settings (ADR-0009). They are inputs to the plan digest (ADR-0013) and cannot change when a job is resumed.
 
-## 5. Publication phases
+## 5. Rationale
+
+Writing directly to the destination exposes unvalidated output for the whole run, which is the failure the product is positioned against. A rename is not an atomic commit on an object store. A manifest or pointer gives all-or-nothing visibility with no extra copy, but only to a consumer that reads it. Consumers of plain files mostly list a prefix (§1), so as the only mode it would protect few real consumers.
+
+Promotion uses only per-object primitives that every target store provides, and it protects every consumer. Its costs are one copy and a set that does not appear atomically. Both modes are therefore defined, Promotion is the default, and the guarantee is named per mode instead of as one claim that would be false for some consumers.
+
+The sealed version location is deferred because it depends on how users switch their consumers to a new location, which is not yet known. Provider-specific conditional operations are used inside each mode, as no-replace creation and as the conditional update of a reference. They are not the portable design, because their semantics differ by provider.
+
+## 6. Publication phases
 
 Publication depends on steps that other ADRs own. The table lists the full sequence and, for each phase, what this ADR requires and which ADR owns the rest. Phases 1 to 5 and 7 to 8 are the same in both modes. Phase 6 differs by mode.
 
 | # | Phase | What happens | Defined here | Owned elsewhere |
 |---|---|---|---|---|
 | 1 | Plan | Determine the publication target and mode, check the destination preconditions of the mode, and capture the destination version where available | Target, mode, and precondition capture | Output ownership per Work Unit: ADR-0012 |
-| 2 | Stage | Write attempt-scoped immutable data objects; never overwrite source objects | Staging layout (§5.1) | Who writes and when: ADR-0012 workers through ADR-0014 writers and ADR-0005 storage |
+| 2 | Stage | Write attempt-scoped immutable data objects; never overwrite source objects | Staging layout (§6.1) | Who writes and when: ADR-0012 workers through ADR-0014 writers and ADR-0005 storage |
 | 3 | Finalize | Close writers, verify durable upload completion, collect object identities, sizes, checksums/ETags, and format metadata | Which object identities the output manifest needs | Writer close semantics: ADR-0014. Acceptance of the Attempt: ADR-0013 |
 | 4 | Validate | Apply the requested validation policy against the source and staged output; record evidence and its scope | That publication requires recorded evidence | What evidence means: ADR-0006. Recording it: ADR-0013 |
 | 5 | Build output manifest | Create an immutable manifest listing the exact accepted objects and relevant schema/partition metadata, with a digest and format version | Entirely | — |
-| 6 | Make visible | Promotion mode: place the objects and write the completion marker (§6.4). Reference mode: commit the publication reference (§7.2) | Entirely | The conditional-write and copy primitives: ADR-0005 |
+| 6 | Make visible | Promotion mode: place the objects and write the completion marker (§7.4). Reference mode: commit the publication reference (§8.2) | Entirely | The conditional-write and copy primitives: ADR-0005 |
 | 7 | Record outcome | Record publication intent and result so an ambiguous acknowledgement can be reconciled | The reconciliation procedure | The publication record: ADR-0013 |
-| 8 | Garbage collect | Asynchronously remove unreferenced attempt output after retention and reference-safety checks | Reference-safety rules (§8) | Retention policy and records: ADR-0013 |
+| 8 | Garbage collect | Asynchronously remove unreferenced attempt output after retention and reference-safety checks | Reference-safety rules (§9) | Retention policy and records: ADR-0013 |
 
 Validation always completes before phase 6 starts. No object reaches a place where a consumer of either kind reads it before the whole output set has passed the selected validation.
 
-### 5.1 Staging layout
+### 6.1 Staging layout
 
 - Staged objects are immutable, and each object name is unique to its Attempt.
 - The attempt scope is encoded so that the directory layout of the output, including partition directories, is preserved below the staging root. An accepted object's path relative to the staging root determines its path relative to the destination.
@@ -94,9 +102,9 @@ Validation always completes before phase 6 starts. No object reaches a place whe
 - Invisibility of staged output does not rely on a hidden-name convention such as a leading underscore or dot. Some readers skip such names; that behavior is reader-specific.
 - By default the staging root is in the same bucket or container as the destination, so that promotion can use a provider-side copy. The staging root is a job setting. A consumer that lists a common parent of the staging root and the destination can read staged objects; the documentation states this.
 
-## 6. Promotion mode
+## 7. Promotion mode
 
-### 6.1 Guarantee: validated before visible
+### 7.1 Guarantee: validated before visible
 
 Promotion mode guarantees the following for every consumer:
 
@@ -108,37 +116,37 @@ Promotion mode guarantees the following for every consumer:
 Promotion mode does **not** guarantee:
 
 - **Atomic appearance of the set.** A consumer that lists the destination prefix while promotion is in progress can read a subset of the output set. Every object in that subset is validated output, but the dataset is incomplete. A consumer that needs a complete set waits for the completion marker or uses Reference mode.
-- **A bounded exposure time after an interruption.** If the process is terminated during promotion, the subset placed so far stays visible until the job is resumed or abandoned (§6.5).
+- **A bounded exposure time after an interruption.** If the process is terminated during promotion, the subset placed so far stays visible until the job is resumed or abandoned (§7.5).
 
 The guarantee is therefore narrower than a table-format commit. Compared with writing directly into the destination prefix, it removes two exposures: output that has not been validated is never visible, and a job that fails before publication leaves nothing behind. It shortens a third: the time during which the set is incomplete is the duration of promotion, not the duration of the conversion.
 
-### 6.2 Destination preconditions
+### 7.2 Destination preconditions
 
 - By default the destination prefix must contain no objects. This is checked at planning time and again when promotion starts.
 - An explicit policy may allow promotion into a prefix that already contains objects, for example to add partitions. Promotion then only adds objects with new names. If any destination name in the output manifest already exists when promotion starts, the job fails with a Conflict error (ADR-0008) before any object is placed.
 - Replacing or removing existing objects is not offered in promotion mode. A prefix-listing consumer would read a mixture of old and new objects, and no ordering of the operations prevents that. A dataset is replaced by publishing to a new prefix and directing consumers to it, or through Reference mode.
 
-### 6.3 Placing an object
+### 7.3 Placing an object
 
 - An object is placed with a no-replace operation: a provider-side copy or a write that succeeds only if the destination name does not exist.
 - After placement the Publisher compares the placed object with the validated staged object, using the size and a checksum that the provider reports for both. This is a transfer-integrity check, not a validation level (ADR-0006). Where the provider reports no checksum that is comparable across the copy, the publication record states that the placement was not verified.
 - If staging and the destination are in different stores, no provider-side copy exists and the bytes are transferred again through UDC. The same comparison applies.
 - If a destination name already exists after promotion has started, the Publisher compares its identity with the staged object. An identical object is treated as placed by an earlier try of this publication. A different object is a Conflict error.
 
-### 6.4 Sequence
+### 7.4 Sequence
 
 1. Record publication intent with the digest of the output manifest (ADR-0013).
-2. Check the destination preconditions (§6.2). If reconciliation shows that this publication is already in progress, the check is instead that every object present under the default precondition is one this publication placed.
-3. Place every object in the output manifest (§6.3). Placement order is not significant, and placements run under the resource budgets of ADR-0012.
+2. Check the destination preconditions (§7.2). If reconciliation shows that this publication is already in progress, the check is instead that every object present under the default precondition is one this publication placed.
+3. Place every object in the output manifest (§7.3). Placement order is not significant, and placements run under the resource budgets of ADR-0012.
 4. Verify that every object in the output manifest exists at its destination name with the expected identity.
 5. Write a copy of the output manifest, and then the completion marker, with no-replace writes.
 6. Record the outcome.
 
 The publication is committed when the completion marker exists and names the expected manifest digest. Before that point it is in progress, however many objects have been placed.
 
-By default the manifest copy and the completion marker are written under the destination prefix with names that begin with an underscore, following the `_SUCCESS` convention of Hadoop-family committers. Whether each supported reader ignores these names is verified per reader (§11). A job may place them outside the destination prefix instead, for a consumer that does not tolerate additional objects.
+By default the manifest copy and the completion marker are written under the destination prefix with names that begin with an underscore, following the `_SUCCESS` convention of Hadoop-family committers. Whether each supported reader ignores these names is verified per reader (§12). A job may place them outside the destination prefix instead, for a consumer that does not tolerate additional objects.
 
-### 6.5 Interruption, resume, and withdrawal
+### 7.5 Interruption, resume, and withdrawal
 
 - **Reconciliation.** Promotion always starts by reading the destination: the completion marker first, then the placed objects. A committed publication is recorded as such and nothing is placed again. An in-progress publication continues with the objects that are missing.
 - **Resume.** A resumed job continues promotion from the retained staged objects under the same publication ID.
@@ -147,23 +155,23 @@ By default the manifest copy and the completion marker are written under the des
 - Abandoning a job whose publication is in progress performs withdrawal. Abandoning never removes objects of a committed publication.
 - A terminated process cannot withdraw. The subset stays visible until the job is recovered, resumed, or abandoned; `udc job status` reports the in-progress publication.
 
-### 6.6 Local filesystem
+### 7.6 Local filesystem
 
 On a local filesystem, placement is a no-replace rename within one filesystem, which needs no copy. When the destination directory does not yet exist and staging is on the same filesystem, the Publisher renames the staged directory as a whole. The output set then appears in one step, and the publication is all-or-nothing for prefix-listing consumers as well. This stronger result is reported only where the filesystem's rename behavior has been verified.
 
-## 7. Reference mode
+## 8. Reference mode
 
-### 7.1 Guarantee: all or nothing
+### 8.1 Guarantee: all or nothing
 
 A reference-aware consumer sees either the previous output manifest or the new one, never a mixture and never a partial set. The guarantee holds only for consumers that read through the reference. A consumer that lists the location of the staged objects is outside the guarantee; it can read objects of rejected Attempts and of earlier versions.
 
-### 7.2 Commit
+### 8.2 Commit
 
-The final publication operation uses a conditional write, a version precondition, or another provider-specific commit primitive. The commit request includes the expected prior version or ETag of the reference where supported. The exact mechanism (a single reference object, a versioned catalog entry, or another provider capability) is negotiated and tested per destination (§9).
+The final publication operation uses a conditional write, a version precondition, or another provider-specific commit primitive. The commit request includes the expected prior version or ETag of the reference where supported. The exact mechanism (a single reference object, a versioned catalog entry, or another provider capability) is negotiated and tested per destination (§10).
 
 The published objects are the staged objects themselves. They are referenced by a committed output manifest and are never removed as staging leftovers.
 
-### 7.3 Consumer convention and MVP status
+### 8.3 Consumer convention and MVP status
 
 Reference mode is useful only with a convention that consumers can follow. The candidates are:
 
@@ -174,7 +182,7 @@ Neither is selected. Reference mode is part of an MVP release only if one conven
 
 A third arrangement, a sealed version location whose reference is held outside UDC (§3), needs no extra copy and serves prefix-listing consumers. It is not part of the MVP and is revisited with the first evidence about how consumers are switched to a new location.
 
-## 8. Idempotency and concurrency
+## 9. Idempotency and concurrency
 
 - Publication ID is stable for a Job and its plan generation, and therefore unchanged across execution generations (ADR-0013). A resumed job reconciles the same publication instead of starting a second one.
 - Manifest content is immutable and content-addressed or versioned.
@@ -183,7 +191,7 @@ A third arrangement, a sealed version location whose reference is held outside U
 - Late attempts cannot add objects to an already committed output manifest.
 - Garbage collection is reference-aware. It never deletes an object at its published location. In Promotion mode the staged copies are no longer referenced once the publication is committed and are removed after the retention period. In Reference mode the staged objects are the published objects and are never removed by staging cleanup.
 
-## 9. Object-store limitations and capability negotiation
+## 10. Object-store limitations and capability negotiation
 
 The Storage adapter (ADR-0005) exposes provider operations and their capabilities. The Generic Publisher selects a mode only from capabilities actually verified for that provider/account configuration. It must not infer atomicity from API naming.
 
@@ -201,17 +209,17 @@ Provider documentation describes the following. Each item is confirmed by test b
 
 If a required capability is absent or cannot be verified, the job is rejected at planning time with a Compatibility error (ADR-0008).
 
-## 10. Trade-offs and consequences
+## 11. Trade-offs and consequences
 
 - Promotion mode costs one additional copy of the output on object stores. The copy is provider-side when staging and destination share a store, so the bytes do not pass through UDC, but it adds requests and time proportional to the output.
 - Promotion mode does not make a multi-object dataset appear atomically. UDC cannot offer that to a consumer that only lists a prefix; the documentation must say so wherever publication is described.
-- Withdrawal deletes objects under the user's destination prefix. The rules in §6.5 restrict it to objects this publication placed, and it requires delete permission on the destination.
+- Withdrawal deletes objects under the user's destination prefix. The rules in §7.5 restrict it to objects this publication placed, and it requires delete permission on the destination.
 - A terminated process leaves a partially promoted destination until someone acts. Recovery after restart and `udc job status` make the state visible; they do not remove the exposure.
 - Reference mode gives the stronger guarantee but depends on a consumer convention that plain-file tooling does not share. Until one is selected, it protects few real consumers.
 - Supporting two modes increases the test matrix: each mode is tested per provider.
 - The completion marker and manifest copy are additional objects under the destination prefix by default. A reader that does not ignore them needs them placed elsewhere.
 
-## 11. Validation plan
+## 12. Validation plan
 
 Inject failure before, during, and after each publication phase, including a lost response after the completion marker or the reference commit is written. For every case verify the guarantee of the mode in use.
 
@@ -231,7 +239,7 @@ Reference mode, where it is offered:
 
 Test provider-specific semantics for the local filesystem, S3, GCS, and Azure separately; do not generalize one provider's guarantee to the others.
 
-## 12. Ownership boundary
+## 13. Ownership boundary
 
 **Owns:** the Generic Publisher and its protocol for generic file/dataset output: staging layout, the output manifest, the publication modes and the guarantee each one may claim, the completion marker and the publication reference, reconciliation of ambiguous outcomes, withdrawal, and reference-safe cleanup of staging.
 
@@ -244,11 +252,11 @@ Test provider-specific semantics for the local filesystem, S3, GCS, and Azure se
 - Retry eligibility of publication errors — ADR-0008.
 - How the publication mode is expressed in configuration — ADR-0009.
 
-## 13. Revisit conditions
+## 14. Revisit conditions
 
 Revisit when a consumer convention for Reference mode is selected, when measurements show that the promotion copy is too costly for target datasets, when evidence shows how users switch consumers to a new location (the sealed version location of §3), or when UDC introduces table-format publication as a production capability.
 
-## 14. References
+## 15. References
 
 - [Amazon Athena: specify a table location in Amazon S3](https://docs.aws.amazon.com/athena/latest/ug/tables-location-format.html)
 - [Amazon S3: how to prevent object overwrites with conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html)
@@ -257,7 +265,7 @@ Revisit when a consumer convention for Reference mode is selected, when measurem
 - [Azure Blob Storage: Copy Blob](https://learn.microsoft.com/en-us/rest/api/storageservices/copy-blob)
 - [Delta Lake: Presto, Trino, and Athena integration using manifests](https://docs.delta.io/latest/presto-integration.html)
 
-## 15. Related ADRs
+## 16. Related ADRs
 
 - [ADR-0005: Storage Abstraction](ADR-0005-storage-abstraction.md)
 - [ADR-0006: Validation Semantics](ADR-0006-validation-semantics.md)

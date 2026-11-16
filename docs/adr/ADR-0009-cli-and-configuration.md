@@ -52,7 +52,7 @@ Reproducibility does not come from ranking the file above the environment. It co
 - `udc convert` — plan and run a conversion job: schema classification, conversion, the validation levels the job selects, and publication. A plan-only form stops after planning and prints the schema compatibility classification and the effective plan, without reading row data for conversion or writing output.
 - `udc validate` — compare two datasets that already exist; see §6.1.
 - `udc job status`
-- `udc job resume` — explicitly resume a failed or cancelled job; the contract is defined by ADR-0013 §9.
+- `udc job resume` — explicitly resume a failed or cancelled job; the contract is defined by ADR-0013 §10.
 - `udc job abandon` — give up a failed or cancelled job: reconcile or withdraw its publication and release its retained staging, as ADR-0013 and ADR-0017 define.
 
 The CLI also reports the build's version, target, source commit, and compiled-in adapters, as ADR-0019 requires. Exact flags are settled with the first implementation.
@@ -69,7 +69,7 @@ It is a separate command, not a step of `udc convert`, for three reasons. A conv
 - The validation performed inside `udc convert` and by `udc validate` use the same rules and produce the same evidence records.
 - Exit status separates three outcomes: evidence agrees at every selected level; a mismatch (the Validation category of ADR-0008); and any other error. `udc convert` uses the same status for a job that fails on a validation mismatch.
 
-The plain-file-to-table operations of ADR-0015 §9 use these commands when they are built: the compatibility check before registration is the plan-only form of a job whose target is a table, dataset-to-snapshot validation is `udc validate` with a table snapshot as the target, and validated ingestion is `udc convert` with a table target.
+The plain-file-to-table operations of ADR-0015 §10 use these commands when they are built: the compatibility check before registration is the plan-only form of a job whose target is a table, dataset-to-snapshot validation is `udc validate` with a table snapshot as the target, and validated ingestion is `udc convert` with a table target.
 
 ## 7. Configuration rules
 
@@ -115,7 +115,14 @@ Add golden tests for CLI help and config parsing; test precedence across all fou
 
 Revisit after the first stable CLI release or if SDK-first use cases become dominant.
 
-## 13. Related ADRs
+## 13. References
+
+- [clap crate](https://docs.rs/clap/latest/clap/)
+- [Serde](https://serde.rs/)
+- [Cargo configuration](https://doc.rust-lang.org/cargo/reference/config.html)
+- [AWS CLI configuration](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html)
+
+## 14. Related ADRs
 
 - [ADR-0006: Validation Semantics](ADR-0006-validation-semantics.md)
 - [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)

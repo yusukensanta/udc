@@ -36,9 +36,15 @@ Adopt a **capability-oriented FileFormatAdapter contract** with separate inspect
 
 A format adapter must expose an explicit capability descriptor. Unsupported capabilities must be reported rather than simulated or silently ignored.
 
-## 5. Contract boundaries
+## 5. Rationale
 
-### 5.1 FormatDescriptor / Capabilities
+A single universal trait hides the differences that decide correctness: where a format can be split, what metadata is available without a scan, and which types it can represent. Exposing the library types would give access to every feature but would bind the scheduler and every other crate to particular libraries. Pairwise converters grow with the product of the formats and would repeat schema mapping and validation in each pair, although UDC's value depends on those being applied uniformly (ADR-0003, ADR-0006).
+
+A capability descriptor turns each difference into an explicit, testable statement that the Planner can act on. A format without safe splits is planned as one Work Unit per file instead of being split incorrectly. Arrow RecordBatch as the interchange gives every source and target pair through one adapter per format, and lets readers and writers be tested independently of each other.
+
+## 6. Contract boundaries
+
+### 6.1 FormatDescriptor / Capabilities
 
 Expose immutable metadata such as:
 - format identifier and adapter version;
@@ -56,11 +62,11 @@ Expose immutable metadata such as:
 
 Capabilities describe what the adapter can guarantee, not what the underlying format specification theoretically permits.
 
-### 5.2 Inspection
+### 6.2 Inspection
 
 Inspection returns physical schema, format metadata, row/record count and size estimates where available, split metadata, and provenance. Inspection must distinguish exact values from estimates and unknown values. It should avoid scanning all records when footer/header metadata is sufficient.
 
-### 5.3 Split planning
+### 6.3 Split planning
 
 The adapter receives source identity and planning constraints, then returns opaque but serializable SplitDescriptors. Each descriptor contains:
 - stable format-specific split identity;
@@ -74,7 +80,7 @@ The adapter must never claim independent splitting when it cannot guarantee deco
 
 UDC's Work Unit wraps a SplitDescriptor with job-level output ownership, validation policy, and resource class. The adapter does not allocate global Work Unit IDs or assign workers.
 
-### 5.4 Streaming reader
+### 6.4 Streaming reader
 
 Reader contract requirements:
 - bounded output batches;
@@ -86,7 +92,7 @@ Reader contract requirements:
 
 Readers do not decide global retry, checkpoint acceptance, or job state. A failed split is retried by orchestration according to ADR-0008 and ADR-0013.
 
-### 5.5 Streaming writer
+### 6.5 Streaming writer
 
 Writer contract requirements:
 - write to an attempt-owned staging destination;
@@ -98,13 +104,13 @@ Writer contract requirements:
 
 Final visibility is owned by the Generic Publisher under ADR-0017, or by the table-native commit under ADR-0015 when the destination is a table.
 
-**Read-back is required of a target format.** Validation takes its target-side evidence by reading the staged output back (ADR-0006). A format is therefore accepted as the target of a job only if the adapter can also read what it writes, through a reader that meets §5.4. An adapter that can write a format but cannot read it back reports this in its descriptor, and the Planner rejects a job that selects the format as a target with a Compatibility error (ADR-0008). No mode skips target-side validation for such a format. An adapter that can read a format but not write it is unaffected: the format can be a source.
+**Read-back is required of a target format.** Validation takes its target-side evidence by reading the staged output back (ADR-0006). A format is therefore accepted as the target of a job only if the adapter can also read what it writes, through a reader that meets §6.4. An adapter that can write a format but cannot read it back reports this in its descriptor, and the Planner rejects a job that selects the format as a target with a Compatibility error (ADR-0008). No mode skips target-side validation for such a format. An adapter that can read a format but not write it is unaffected: the format can be a source.
 
-### 5.6 Schema mapping boundary
+### 6.6 Schema mapping boundary
 
 Adapters map physical schemas to/from the canonical logical schema defined in ADR-0003. They must preserve format-specific metadata where required and classify unknown/unsupported annotations. They do not independently invent cross-format coercion policy.
 
-## 6. Error and resource contract
+## 7. Error and resource contract
 
 - Return typed errors that map to the categories of ADR-0008: Data (corrupt input), Compatibility (unsupported feature, schema mismatch), Configuration (invalid options), Transient (transient I/O failure), and Resource (resource exhaustion).
 - Include safe source/split context without leaking credentials or signed URLs.
@@ -112,13 +118,22 @@ Adapters map physical schemas to/from the canonical logical schema defined in AD
 - CPU-intensive decode/encode work must follow ADR-0007 execution constraints.
 - Adapter errors are classified for retry by ADR-0008; adapters do not retry indefinitely.
 
-## 7. Compatibility and versioning
+## 8. Compatibility and versioning
 
 SplitDescriptors must include an adapter/descriptor version. A stored plan must not be reinterpreted by a newer adapter version unless compatibility is explicitly declared. If the required reader capability is unavailable during resume, the job must fail with a clear compatibility error or require a new plan.
 
 Public adapter contracts should be narrow and stable. Internal library wrappers may evolve independently behind the contract.
 
-## 8. Validation plan
+## 9. Trade-offs and consequences
+
+- Capability negotiation adds types and planning logic, and every optional capability multiplies the test cases.
+- Values pass through Arrow's type system. A format whose types do not map directly needs an explicit mapping under ADR-0003, and a library that is not Arrow-native pays a conversion cost.
+- Optimizations for one pair of formats, such as copying Parquet row groups without decoding them, are not available through the generic path.
+- A narrow, stable contract will sometimes not expose a library feature. Adding it is a contract change by design.
+- Stored plans pin descriptor versions. An adapter upgrade can make an old plan impossible to resume instead of reinterpreting it (§8).
+- The read-back requirement excludes a write-only format as a job target.
+
+## 10. Validation plan
 
 Every adapter must provide:
 - format conformance fixtures and malformed/corrupt input tests;
@@ -130,7 +145,7 @@ Every adapter must provide:
 - compatibility matrix by adapter/library version;
 - integration tests using fake/local Storage and real object storage where relevant.
 
-## 9. Ownership boundary
+## 11. Ownership boundary
 
 **Owns:** the adapter contract, the capability descriptor, SplitDescriptors and their versioning, and the obligations of streaming readers and writers.
 
@@ -145,11 +160,16 @@ Every adapter must provide:
 - Table-level semantics above data files — ADR-0015.
 - CPU and blocking-work execution constraints — ADR-0007.
 
-## 10. Revisit conditions
+## 12. Revisit conditions
 
 Revisit when a new format exposes capabilities that cannot fit the current contract without format-specific extensions, or when Arrow is not a viable interchange for a supported format. Do not add a universal feature merely because one format supports it.
 
-## 11. Related ADRs
+## 13. References
+
+- [Apache Arrow columnar format](https://arrow.apache.org/docs/format/Columnar.html)
+- [arrow crate: RecordBatch](https://docs.rs/arrow/latest/arrow/record_batch/struct.RecordBatch.html)
+
+## 14. Related ADRs
 
 - [ADR-0003: Canonical Data Model and Schema Compatibility](ADR-0003-canonical-data-model.md)
 - [ADR-0005: Storage Abstraction](ADR-0005-storage-abstraction.md)

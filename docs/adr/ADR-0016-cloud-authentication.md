@@ -33,7 +33,13 @@ UDC accesses Amazon S3, Google Cloud Storage, Azure Blob Storage, and potentiall
 
 Define a provider-neutral **CredentialResolver** interface, while delegating actual identity acquisition and token refresh to provider-native SDK credential chains wherever possible. UDC configuration should select a credential profile/source or identity mode, not carry resolved secret values. Static credentials may be supported as an explicitly opt-in local/testing path, but must not be the recommended production mode.
 
-## 5. Responsibility boundaries
+## 5. Rationale
+
+Static keys managed by UDC would be uniform, but they would make UDC responsible for distributing and rotating long-lived secrets, which is the option most exposed to leakage. A token broker owned by UDC would reimplement identity systems that the providers already operate, with a large security surface. A secret manager stores secrets; it does not define identity or refresh.
+
+The provider-native chains already implement workload identity, federation, and refresh, and they are what operators have configured in their environments. Delegating to them keeps UDC out of secret handling, and that is what allows the job manifest to hold references only. The CredentialResolver interface keeps provider SDK types out of the domain model, so storage adapters, catalog adapters, and tests see one shape for every provider.
+
+## 6. Responsibility boundaries
 
 - CredentialResolver resolves identity for a provider/resource scope and returns a short-lived provider client/session or opaque credential handle.
 - Storage adapters use the resolved provider client; they do not parse user config or implement their own global credential precedence.
@@ -42,23 +48,23 @@ Define a provider-neutral **CredentialResolver** interface, while delegating act
 - The job manifest persists only credential references/profile identifiers and non-secret identity metadata under ADR-0013.
 - Observability records provider, credential source category, expiry/refresh outcome, and identity subject where safe; never records tokens or key material.
 
-## 6. Provider considerations
+## 7. Provider considerations
 
-### 6.1 AWS
+### 7.1 AWS
 
 Evaluate the AWS SDK default credential provider chain, including environment/profile, web identity, container credentials, and instance role sources. Role assumption and session refresh should use SDK-supported mechanisms.
 
-### 6.2 GCP
+### 7.2 GCP
 
 Evaluate Application Default Credentials and workload identity federation. Do not assume service-account key files are required or preferred.
 
-### 6.3 Azure
+### 7.3 Azure
 
 Evaluate DefaultAzureCredential or the relevant Azure SDK chain, including managed identity and developer tooling. Verify token refresh behavior for long-running uploads.
 
 These are candidates to validate against the specific Rust SDKs selected by ADR-0005; this ADR does not assert that all chains have equivalent feature support in every Rust library.
 
-## 7. Long-running job behavior
+## 8. Long-running job behavior
 
 - Resolve credentials as late as practical, near resource access.
 - Support token refresh without restarting the whole job where SDKs provide it.
@@ -67,7 +73,7 @@ These are candidates to validate against the specific Rust SDKs selected by ADR-
 - If refresh cannot be performed, stop admission of new work and fail/retry only according to ADR-0008; do not publish incomplete outputs.
 - Document re-authentication requirements for resumed jobs.
 
-## 8. Security requirements
+## 9. Security requirements
 
 - No secrets in command-line arguments by default.
 - No secret values in config snapshots, the job manifest, event logs, metrics, or traces.
@@ -76,11 +82,21 @@ These are candidates to validate against the specific Rust SDKs selected by ADR-
 - Support TLS and provider-native endpoint validation.
 - Make static credentials explicit and opt-in, with clear rotation guidance.
 
-## 9. Validation plan
+## 10. Trade-offs and consequences
+
+- Behavior differs by provider and by SDK. The test matrix is per provider, and equivalence between chains is not assumed (§7).
+- When a chain selects an unexpected source, the failure is harder to diagnose. Reporting the credential source and the identity, without secret material, is the mitigation.
+- Environment variables read by a provider chain are outside UDC's configuration precedence (ADR-0009). The effective configuration therefore does not fully describe which identity ran; the non-secret identity metadata recorded with the job does.
+- A resumed job can run under a different identity from the original run, with different permissions.
+- Long jobs depend on refresh. Where an SDK cannot refresh, the job stops admitting work instead of continuing with partial access.
+- Static credentials remain as an opt-in path for local use and tests, and remain a leakage risk there.
+- The decision depends on how complete each provider's chain is in the Rust libraries selected under ADR-0005.
+
+## 11. Validation plan
 
 Test local developer profile, role/workload identity, token expiry/refresh, revoked permissions, wrong audience/scope, network interruption to identity service, and resumed jobs. Inspect persisted manifests and telemetry to verify that no secret material is present.
 
-## 10. Ownership boundary
+## 12. Ownership boundary
 
 **Owns:** identity source selection, the CredentialResolver boundary, refresh behavior, and which identity information may be persisted or recorded.
 
@@ -92,11 +108,17 @@ Test local developer profile, role/workload identity, token expiry/refresh, revo
 - Telemetry instrumentation — ADR-0010.
 - Catalog protocol operations — the catalog adapter, whose boundary is sketched in ADR-0015.
 
-## 11. Revisit conditions
+## 13. Revisit conditions
 
 Revisit when provider SDK selection is finalized or when UDC adds a managed multi-tenant execution service with delegated identity requirements.
 
-## 12. Related ADRs
+## 14. References
+
+- [AWS SDKs and tools: standardized credential providers](https://docs.aws.amazon.com/sdkref/latest/guide/standardized-credentials.html)
+- [Google Cloud: Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials)
+- [Azure SDK for Rust: authentication](https://learn.microsoft.com/en-us/azure/developer/rust/sdk/authentication/overview)
+
+## 15. Related ADRs
 
 - [ADR-0005: Storage Abstraction](ADR-0005-storage-abstraction.md)
 - [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)

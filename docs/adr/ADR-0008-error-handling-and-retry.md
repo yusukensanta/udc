@@ -107,7 +107,12 @@ For validation mismatches: corrupt the staged output of the first Attempt only, 
 
 Revisit when UDC introduces a durable distributed job coordinator or when new storage/table integrations require different failure classification.
 
-## 12. Related ADRs
+## 12. References
+
+- [thiserror crate](https://docs.rs/thiserror/latest/thiserror/)
+- [anyhow crate](https://docs.rs/anyhow/latest/anyhow/)
+
+## 13. Related ADRs
 
 - [ADR-0006: Validation Semantics](ADR-0006-validation-semantics.md)
 - [ADR-0009: CLI and Job Configuration](ADR-0009-cli-and-configuration.md)

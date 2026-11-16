@@ -123,7 +123,11 @@ Tests must prove both accepted conversions and expected rejections. A conversion
 
 Revisit if practical format coverage shows that Arrow Schema plus a small, well-defined metadata contract can represent all required semantics without a separate domain model, or if the proposed model creates unacceptable duplication and maintenance burden.
 
-## 11. Related ADRs
+## 11. References
+
+- [Apache Arrow columnar format](https://arrow.apache.org/docs/format/Columnar.html)
+
+## 12. Related ADRs
 
 - [ADR-0004: Execution Engine Selection](ADR-0004-execution-engine-selection.md)
 - [ADR-0006: Validation Semantics](ADR-0006-validation-semantics.md)

@@ -179,7 +179,7 @@ Adding a channel requires a name check on that registry, an automated publish st
 
 ## 11. Upgrade and compatibility communication
 
-- The compatibility surfaces of a release are the CLI and configuration schema (ADR-0009), the persisted manifest schema (ADR-0013 §13), SplitDescriptor versions (ADR-0014 §7), and error codes (ADR-0008).
+- The compatibility surfaces of a release are the CLI and configuration schema (ADR-0009), the persisted manifest schema (ADR-0013 §14), SplitDescriptor versions (ADR-0014 §8), and error codes (ADR-0008).
 - The release notes state, for each release, whether jobs persisted by the previous release can be recovered and resumed. A release that cannot read the previous manifest version is a breaking release.
 - UDC has no self-update mechanism in the first wave. An upgrade uses the same channel as the installation.
 

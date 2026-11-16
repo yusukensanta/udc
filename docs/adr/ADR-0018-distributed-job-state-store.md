@@ -37,7 +37,13 @@ Do not implement a distributed state store in the MVP. When multi-worker executi
 
 The logical state model and transition semantics remain owned by ADR-0013. This ADR selects the future deployment/backend model and its distributed coordination requirements only.
 
-## 5. Required distributed capabilities
+## 5. Rationale
+
+The MVP is single-node and a distributed store has a real operating cost, so none is built until a trigger in §9 is met. This ADR exists now for a different reason: the single-node design must not make choices that a distributed backend cannot honor. Recording the required capabilities (§6) and the lease rules (§7) fixes what the JobStateStore contract of ADR-0013 has to allow.
+
+Among the options, a shared SQLite file or journal is not a safe multi-host store, and state held in a coordinator's memory is not durable. A transactional database provides the conditional transitions, uniqueness constraints, and bounded queries that §6 lists, with an operating model that is widely understood. That is why PostgreSQL is the baseline for evaluation. Object-store manifests remain an alternative for low-contention metadata, because their conditional-write semantics vary and a transition for every Attempt is frequent.
+
+## 6. Required distributed capabilities
 
 A backend must support, directly or through a safe transaction:
 - atomic claim of a READY Work Unit conditioned on state/version;
@@ -52,7 +58,7 @@ A backend must support, directly or through a safe transaction:
 - schema migration and backup/restore procedures;
 - visibility/consistency semantics documented for reads after writes.
 
-## 6. Lease and duplicate-delivery protocol
+## 7. Lease and duplicate-delivery protocol
 
 A lease gives a worker temporary authority to attempt a Work Unit; it does not guarantee single execution. A paused or partitioned worker may continue after its lease expires. Therefore:
 
@@ -65,13 +71,13 @@ A lease gives a worker temporary authority to attempt a Work Unit; it does not g
 
 Fencing tokens or monotonic state versions should be used where a downstream resource can reject stale writers. If a destination cannot enforce fencing, attempt-isolated output plus conditional acceptance at the state store remains mandatory.
 
-## 7. Consistency and availability
+## 8. Consistency and availability
 
 Job state transitions require a consistency level strong enough to prevent two workers from both claiming or accepting the same unit. Eventually consistent listing alone is not a sufficient claim/acceptance primitive.
 
 Temporary state-store unavailability must stop new admission and must not cause workers to publish outputs independently. Workers may finish an already running isolated attempt, but acceptance and publication wait until authoritative state can be updated.
 
-## 8. Adoption triggers
+## 9. Adoption triggers
 
 Distributed State Store selection is triggered only when at least one of the following is demonstrated:
 - single-node CPU/network resources are saturated and throughput needs more nodes;
@@ -81,13 +87,22 @@ Distributed State Store selection is triggered only when at least one of the fol
 
 Do not add distributed state merely to claim horizontal scalability. Until this ADR is accepted and implemented, UDC supports single-node durable execution only.
 
-## 9. Validation plan
+## 10. Trade-offs and consequences
+
+- Deferral means no horizontal scale. Throughput is bounded by one machine until this ADR is accepted and implemented.
+- Designing for a future backend constrains the MVP. Attempt records carry lease fields that the single-process store does not need.
+- A transactional database is an operational dependency, with deployment, backup, and migration, for anyone who adopts distributed mode.
+- Leases do not prevent duplicate execution. Attempt-isolated staging and conditional acceptance stay mandatory, at the cost of extra storage and cleanup.
+- When the state store is unavailable, admission and publication stop. Consistency is preferred to availability.
+- The requirements in this ADR are not validated by an implementation and may change with the first prototype.
+
+## 11. Validation plan
 
 Run concurrent-claim tests, duplicate delivery, worker pause beyond lease expiry, split-brain/stale worker completion, coordinator restart, state-store failover, network partitions, transaction conflicts, and publication acknowledgement loss. Verify only one Attempt becomes accepted and no worker can make data visible except through the Generic Publisher (ADR-0017) or a table-native commit (ADR-0015).
 
 Benchmark transition throughput and query latency at realistic Work Unit cardinalities. Include backup, restore, migration, and operational cost in the decision.
 
-## 10. Ownership boundary
+## 12. Ownership boundary
 
 **Owns:** selection of a distributed JobStateStore backend, the lease and duplicate-delivery protocol, and the consistency and availability requirements of distributed coordination.
 
@@ -97,11 +112,11 @@ Benchmark transition throughput and query latency at realistic Work Unit cardina
 - Scheduling policy and the worker contract — ADR-0012.
 - Making output visible — ADR-0017.
 
-## 11. Revisit conditions
+## 13. Revisit conditions
 
 Accept a concrete backend only when the project commits to multi-worker execution. Record the selected DB/product, transaction isolation assumptions, schema/index design, retention policy, backup/restore, availability target, and operational responsibilities in a superseding ADR or this ADR's accepted revision.
 
-## 12. Related ADRs
+## 14. Related ADRs
 
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)

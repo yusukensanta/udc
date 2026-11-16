@@ -37,7 +37,7 @@ UDC's main remote data path is I/O-heavy and benefits from overlapping network o
 
 ## 6. Required design constraints
 
-These constraints govern how runtime primitives are used. Which budgets exist, their values, and the scheduling policy are defined by ADR-0012 §8.
+These constraints govern how runtime primitives are used. Which budgets exist, their values, and the scheduling policy are defined by ADR-0012 §9.
 
 - Never spawn one task per discovered object without a concurrency limit.
 - Use bounded channels for batch and work-unit flow.
@@ -72,7 +72,12 @@ Stress test large numbers of small files and a small number of very large files.
 
 Revisit if selected ecosystem libraries require a different runtime or if benchmarks show Tokio imposes material overhead for target workloads.
 
-## 11. Related ADRs
+## 11. References
+
+- [Tokio tutorial](https://tokio.rs/tokio/tutorial)
+- [tokio::sync::Semaphore](https://docs.rs/tokio/latest/tokio/sync/struct.Semaphore.html)
+
+## 12. Related ADRs
 
 - [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)
 - [ADR-0010: Observability and Telemetry](ADR-0010-observability.md)

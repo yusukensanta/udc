@@ -66,7 +66,11 @@ Record provider/library versions and unsupported capabilities.
 
 Revisit if the common library cannot expose a required provider capability safely, if its maintenance/feature coverage becomes inadequate, or if provider SDK usage materially improves reliability without contaminating core abstractions.
 
-## 10. Related ADRs
+## 10. References
+
+- [object_store crate](https://docs.rs/object_store/latest/object_store/)
+
+## 11. Related ADRs
 
 - [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)

@@ -66,7 +66,12 @@ Run large synthetic migrations and verify telemetry overhead, cardinality, local
 
 Revisit if UDC becomes a managed multi-tenant service or adopts a distributed coordinator.
 
-## 11. Related ADRs
+## 11. References
+
+- [tracing crate](https://docs.rs/tracing/latest/tracing/)
+- [OpenTelemetry for Rust](https://opentelemetry.io/docs/languages/rust/)
+
+## 12. Related ADRs
 
 - [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
