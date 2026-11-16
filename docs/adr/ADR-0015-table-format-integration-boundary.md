@@ -68,7 +68,15 @@ A dedicated adapter over an established library leaves protocol correctness with
 - credential/endpoint handling through ADR-0016;
 - catalog-level conditional or transactional behavior where the catalog protocol provides it.
 
-No ADR owns the CatalogAdapter contract yet. This subsection fixes only its boundary with the TableFormatAdapter; a dedicated ADR is required before a catalog integration is implemented.
+No ADR owns the CatalogAdapter contract yet. This subsection fixes only its boundary with the TableFormatAdapter; a dedicated ADR is required before a catalog integration is implemented. That ADR must decide at least:
+
+- the CatalogAdapter's responsibilities and non-goals, and its boundary with the TableFormatAdapter and the StorageAdapter;
+- table identity and namespace resolution, stable across resume;
+- how table metadata is read, and how the native commit is coordinated without bypassing the catalog's concurrency control;
+- credential acquisition and refresh through ADR-0016, with no secret persisted in job state;
+- error mapping to ADR-0008, including the outcome when table metadata changes during a job;
+- the first catalog to support and the reason, or that the choice waits for the evidence of PRD §13.3 (H5);
+- integration tests for a successful append, a commit conflict, retry or re-planning, and recovery of an ambiguous commit outcome.
 
 ### 6.4 StorageAdapter owns
 
@@ -228,6 +236,7 @@ Revisit when UDC chooses a table format for a production migration release or wh
 - [ADR-0003: Canonical Data Model and Schema Compatibility](ADR-0003-canonical-data-model.md)
 - [ADR-0005: Storage Abstraction](ADR-0005-storage-abstraction.md)
 - [ADR-0006: Validation Semantics](ADR-0006-validation-semantics.md)
+- [ADR-0008: Error Handling, Retry, and Failure Boundaries](ADR-0008-error-handling-and-retry.md)
 - [ADR-0012: Scalable Data Processing Architecture](ADR-0012-scalable-data-processing.md)
 - [ADR-0013: Job Manifest and State Management](ADR-0013-job-manifest-and-state-management.md)
 - [ADR-0014: File Format Adapter Contract](ADR-0014-file-format-adapter-contract.md)
