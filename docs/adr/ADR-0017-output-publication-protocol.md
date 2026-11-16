@@ -116,13 +116,16 @@ Promotion mode guarantees the following for every consumer:
 Promotion mode does **not** guarantee:
 
 - **Atomic appearance of the set.** A consumer that lists the destination prefix while promotion is in progress can read a subset of the output set. Every object in that subset is validated output, but the dataset is incomplete. A consumer that needs a complete set waits for the completion marker or uses Reference mode.
-- **A bounded exposure time after an interruption.** If the process is terminated during promotion, the subset placed so far stays visible until the job is resumed or abandoned (§7.5).
+- **A bounded exposure time after an interruption.** If the process is terminated during promotion, the subset placed so far stays visible until the job is resumed or abandoned (§7.6).
+- **Retroactive invisibility.** Withdrawal (§7.6) is cleanup, not a rollback. A consumer that listed or read placed objects before withdrawal has already observed them, and withdrawal cannot undo that.
 
 The guarantee is therefore narrower than a table-format commit. Compared with writing directly into the destination prefix, it removes two exposures: output that has not been validated is never visible, and a job that fails before publication leaves nothing behind. It shortens a third: the time during which the set is incomplete is the duration of promotion, not the duration of the conversion.
 
 ### 7.2 Destination preconditions
 
 - By default the destination prefix must contain no objects. This is checked at planning time and again when promotion starts.
+- **Destination claim.** Before the first placement, the Publisher creates a claim object under the destination prefix with a no-replace write (§7.5). A publication that finds a claim naming another publication fails with a Conflict error before placing anything. Two jobs therefore cannot promote into one prefix at the same time, under either precondition. A claim left by a terminated process keeps other publications out until its job is resumed or abandoned.
+- **Nested destinations.** The Publisher also reads each ancestor prefix of the destination, up to the bucket or container root, for a claim or a completion marker, whether written by UDC or by another tool under the name `_SUCCESS`. Finding one is a Conflict error: UDC does not publish inside a prefix that another publication owns. Under the default precondition, a publication below the destination is found by the empty-prefix check, because its claim or marker is an object under the destination prefix. Under the policy that allows a non-empty prefix, UDC does not look below the destination, and the user is responsible for not nesting publications.
 - An explicit policy may allow promotion into a prefix that already contains objects, for example to add partitions. Promotion then only adds objects with new names. If any destination name in the output manifest already exists when promotion starts, the job fails with a Conflict error (ADR-0008) before any object is placed.
 - Replacing or removing existing objects is not offered in promotion mode. A prefix-listing consumer would read a mixture of old and new objects, and no ordering of the operations prevents that. A dataset is replaced by publishing to a new prefix and directing consumers to it, or through Reference mode.
 
@@ -136,26 +139,50 @@ The guarantee is therefore narrower than a table-format commit. Compared with wr
 ### 7.4 Sequence
 
 1. Record publication intent with the digest of the output manifest (ADR-0013).
-2. Check the destination preconditions (§7.2). If reconciliation shows that this publication is already in progress, the check is instead that every object present under the default precondition is one this publication placed.
-3. Place every object in the output manifest (§7.3). Placement order is not significant, and placements run under the resource budgets of ADR-0012.
-4. Verify that every object in the output manifest exists at its destination name with the expected identity.
-5. Write a copy of the output manifest, and then the completion marker, with no-replace writes.
-6. Record the outcome.
+2. Check the destination preconditions (§7.2). If reconciliation shows that this publication is already in progress, the check is instead that every object present under the default precondition is this publication's claim or an object it placed.
+3. Create the destination claim with a no-replace write, unless this publication already holds it.
+4. Place every object in the output manifest (§7.3). Placement order is not significant, and placements run under the resource budgets of ADR-0012.
+5. Verify that every object in the output manifest exists at its destination name with the expected identity.
+6. Write the manifest copy, and then the completion marker, with no-replace writes.
+7. Remove the destination claim.
+8. Record the outcome.
 
 The publication is committed when the completion marker exists and names the expected manifest digest. Before that point it is in progress, however many objects have been placed.
 
-By default the manifest copy and the completion marker are written under the destination prefix with names that begin with an underscore, following the `_SUCCESS` convention of Hadoop-family committers. Whether each supported reader ignores these names is verified per reader (§12). A job may place them outside the destination prefix instead, for a consumer that does not tolerate additional objects.
+A claim that remains after the marker, because the process stopped between steps 6 and 7, is removed by reconciliation. The names, contents, and consumer contract of the claim, the manifest copy, and the marker are defined in §7.5.
 
-### 7.5 Interruption, resume, and withdrawal
+### 7.5 Completion marker and consumer contract
 
-- **Reconciliation.** Promotion always starts by reading the destination: the completion marker first, then the placed objects. A committed publication is recorded as such and nothing is placed again. An in-progress publication continues with the objects that are missing.
+The completion marker is the last object a Promotion-mode publication writes. UDC writes it only after every object of the output manifest has been verified at its destination name (§7.4), and never removes it. Its presence therefore means that the set it names is complete; its absence means that the publication is in progress, failed, or was abandoned.
+
+| Object | Default name | Name under the policy that allows a non-empty prefix | Exists |
+|---|---|---|---|
+| Destination claim | `_UDC_CLAIM` | `_UDC_CLAIM` | From before the first placement until the marker is written or withdrawal completes |
+| Manifest copy | `_UDC_MANIFEST.json` | `_UDC_MANIFEST.<publication ID>.json` | Written just before the marker; permanent |
+| Completion marker | `_SUCCESS` | `_SUCCESS.<publication ID>` | Permanent once written |
+
+The claim is a JSON object naming the publication ID and the job ID. The marker is a JSON object with these fields: `format` (the string `udc-completion-marker`), `format_version`, `publication_id`, `job_id`, `manifest` (the name of the manifest copy, relative to the destination prefix), `manifest_sha256`, `object_count`, and `total_bytes`. The manifest copy lists every object of the output manifest by its name relative to the destination prefix, with its size and checksum.
+
+A consumer that needs a complete set:
+
+1. Waits until the marker exists.
+2. Reads the manifest copy that the marker names, and checks it against `manifest_sha256`.
+3. Reads exactly the objects that the manifest lists.
+
+Under the default precondition, the destination prefix holds the objects of one publication and names that begin with an underscore. A consumer that waits for `_SUCCESS` and then lists the prefix, skipping names that begin with an underscore, therefore also reads exactly the set. Tools that wait for a `_SUCCESS` object, as schedulers commonly do for Hadoop-family output, work unchanged. A consumer that parses `_SUCCESS` as the summary written by the Hadoop S3A committers does not: the contents differ.
+
+Hadoop-family readers conventionally skip names that begin with an underscore. Whether each supported reader does is verified per reader (§12). A job may write the manifest copy and the marker outside the destination prefix, for a consumer that does not tolerate additional objects. The claim is always under the destination prefix, because that is where another publication looks for it.
+
+### 7.6 Interruption, resume, and withdrawal
+
+- **Reconciliation.** Promotion always starts by reading the destination: the completion marker first, then the claim, then the placed objects. A committed publication is recorded as such and nothing is placed again. An in-progress publication continues with the objects that are missing.
 - **Resume.** A resumed job continues promotion from the retained staged objects under the same publication ID.
-- **Withdrawal.** Withdrawal removes the objects that this publication placed, and only those: an object is removed only if its name is in the output manifest, its identity matches the staged object, and no completion marker exists. After withdrawal the destination prefix is as it was before promotion.
+- **Withdrawal.** Withdrawal removes the objects that this publication placed, and only those: an object is removed only if its name is in the output manifest, its identity matches the staged object, and no completion marker exists. The claim is removed last. After withdrawal the destination prefix is as it was before promotion.
 - When promotion fails with an error that is not retried (ADR-0008), the Publisher attempts withdrawal before the job is recorded FAILED. The publication record states whether the destination is unchanged or partially promoted, and lists the placed objects in the second case.
 - Abandoning a job whose publication is in progress performs withdrawal. Abandoning never removes objects of a committed publication.
 - A terminated process cannot withdraw. The subset stays visible until the job is recovered, resumed, or abandoned; `udc job status` reports the in-progress publication.
 
-### 7.6 Local filesystem
+### 7.7 Local filesystem
 
 On a local filesystem, placement is a no-replace rename within one filesystem, which needs no copy. When the destination directory does not yet exist and staging is on the same filesystem, the Publisher renames the staged directory as a whole. The output set then appears in one step, and the publication is all-or-nothing for prefix-listing consumers as well. This stronger result is reported only where the filesystem's rename behavior has been verified.
 
@@ -187,7 +214,7 @@ A third arrangement, a sealed version location whose reference is held outside U
 - Publication ID is stable for a Job and its plan generation, and therefore unchanged across execution generations (ADR-0013). A resumed job reconciles the same publication instead of starting a second one.
 - Manifest content is immutable and content-addressed or versioned.
 - A retry after an ambiguous response reads and reconciles the destination before it writes again: the completion marker in Promotion mode, the publication reference in Reference mode.
-- Two jobs targeting the same logical destination must not silently overwrite each other. In Reference mode the precondition on the reference detects the conflict. In Promotion mode the no-replace placement detects two jobs that produce the same object name. Under the default precondition the completion marker has a fixed name, so two publications to one empty prefix cannot both commit even when their object names differ. Under the policy that allows a non-empty prefix, the marker name includes the publication ID, and two publications conflict only through an object name.
+- Two jobs targeting the same logical destination must not silently overwrite each other. In Reference mode the precondition on the reference detects the conflict. In Promotion mode the destination claim (§7.2) admits one publication at a time; the no-replace placement and the no-replace completion marker still detect any overlap that remains, such as a claim removed by hand.
 - Late attempts cannot add objects to an already committed output manifest.
 - Garbage collection is reference-aware. It never deletes an object at its published location. In Promotion mode the staged copies are no longer referenced once the publication is committed and are removed after the retention period. In Reference mode the staged objects are the published objects and are never removed by staging cleanup.
 
@@ -213,11 +240,13 @@ If a required capability is absent or cannot be verified, the job is rejected at
 
 - Promotion mode costs one additional copy of the output on object stores. The copy is provider-side when staging and destination share a store, so the bytes do not pass through UDC, but it adds requests and time proportional to the output.
 - Promotion mode does not make a multi-object dataset appear atomically. UDC cannot offer that to a consumer that only lists a prefix; the documentation must say so wherever publication is described.
-- Withdrawal deletes objects under the user's destination prefix. The rules in §7.5 restrict it to objects this publication placed, and it requires delete permission on the destination.
+- Withdrawal deletes objects under the user's destination prefix. The rules in §7.6 restrict it to objects this publication placed, and it requires delete permission on the destination.
 - A terminated process leaves a partially promoted destination until someone acts. Recovery after restart and `udc job status` make the state visible; they do not remove the exposure.
 - Reference mode gives the stronger guarantee but depends on a consumer convention that plain-file tooling does not share. Until one is selected, it protects few real consumers.
 - Supporting two modes increases the test matrix: each mode is tested per provider.
-- The completion marker and manifest copy are additional objects under the destination prefix by default. A reader that does not ignore them needs them placed elsewhere.
+- The completion marker and manifest copy are additional objects under the destination prefix by default, and the claim is one while promotion runs. A reader that does not ignore them needs the marker and manifest copy placed elsewhere.
+- A claim left by a terminated process blocks other publications to that prefix until the job is resumed or abandoned.
+- Checking each ancestor prefix costs one or two metadata requests per level of the destination path.
 
 ## 12. Validation plan
 
@@ -229,7 +258,9 @@ Promotion mode:
 - With promotion interrupted after each number of placed objects, a resumed job completes the publication without placing an object twice, and an abandoned job leaves the destination prefix as it was.
 - An existing object with a destination name is never overwritten, and withdrawal never removes an object that this publication did not place.
 - The completion marker never exists while an object of the output manifest is missing.
-- Two jobs promoting to the same destination: at most one commits, and the other fails with a Conflict error and withdraws.
+- Terminate the process at each of these points, and then resume and, separately, abandon: before the claim; after the claim, before the first placement; between placements; after the last placement, before the marker; after the marker, before the claim is removed; after the claim is removed, before the outcome is recorded; and during withdrawal. Resume commits exactly one complete publication. Abandon leaves the destination as it was, or, once the marker exists, committed and unchanged. No object that this publication did not place is touched.
+- After a failed or abandoned job no completion marker exists, and a marker never names an incomplete set. A marker-aware consumer that reads at any moment of the tests above sees either no marker or the complete set.
+- Two jobs started together against one prefix: exactly one creates the claim, and the other places nothing. A destination nested inside, or containing, the destination of another publication is rejected.
 - Each supported reader, including DuckDB, Spark, and Athena, reads a promoted dataset with the completion marker and manifest copy present.
 - Measure promotion time and request count against conversion time on the benchmark datasets, and compare the exposure window with a direct write by the reference configuration (PRD §13.3, H2).
 
