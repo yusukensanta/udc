@@ -1,0 +1,64 @@
+name: s3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/s3/**"
+      - ".github/workflows/s3.yml"
+  pull_request:
+    paths:
+      - "tools/s3/**"
+      - ".github/workflows/s3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rustfs:
+    name: S3 behaviour tests against RustFS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/s3
+    env:
+      S3_TEST_TARGET: rustfs
+      S3_ENDPOINT: http://127.0.0.1:19000
+      # Fixed test values for the local container in compose.yml; not secrets.
+      AWS_ACCESS_KEY_ID: udc-local-access
+      AWS_SECRET_ACCESS_KEY: udc-local-secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.8"
+          working-directory: tools/s3
+          enable-cache: true
+
+      - name: Lint the tests
+        run: |
+          uv run --locked ruff format --check .
+          uv run --locked ruff check .
+
+      - name: Start RustFS
+        run: docker compose up -d --wait
+
+      - name: Run the tests
+        run: uv run --locked pytest -q
+
+      - name: RustFS logs
+        if: failure()
+        run: docker compose logs rustfs
+
+      - name: Stop RustFS
+        if: always()
+        run: docker compose down -v
