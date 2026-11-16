@@ -31,10 +31,12 @@ ADRs live in [docs/adr](docs/adr/). They stay consistent only if each concern ha
 - **One concern, one ADR.** [ADR-0001](docs/adr/ADR-0001-initial-architecture.md) holds the responsibility map, the ADR scope map, and the shared vocabulary. A new ADR, or a change to an ADR's scope, must update ADR-0001 in the same pull request.
 - **Reference, do not restate.** An ADR that depends on another concern points to the owning ADR instead of redefining its contract. If two ADRs disagree, the owner in the scope map wins and the other is amended.
 - **Header.** Every ADR starts with Status, Date, Decision owners, and Scope. ADRs carry no priority labels; capability priority (P0–P3) and roadmap phases (Phase 0–8) are defined only in the [PRD](docs/PRD.md).
-- **Sections.** Sections are numbered and follow this order: Context, Decision drivers, Options considered, Decision (or Proposed decision), Rationale, topic-specific sections, Trade-offs and consequences, Validation plan, Ownership boundary, Revisit conditions, Related ADRs. An ADR may omit a section that does not apply, except Ownership boundary.
+- **Sections.** Sections are numbered and follow this order: Context, Decision drivers, Options considered, Decision (or Proposed decision), Rationale, topic-specific sections, Trade-offs and consequences, Validation plan, Ownership boundary, Revisit conditions, References, Related ADRs. All of them are required and none may be empty, except topic-specific sections and References. Options considered lists at least two options. References is expected where the ADR names an external library, product, or specification.
 - **Ownership boundary.** State what the ADR owns and, for each neighbouring concern it does not own, the ADR that does.
 - **Shared terms.** Use the vocabulary in ADR-0001, the validation level names (L1–L5) from ADR-0006, and the error categories from ADR-0008. Define a new term instead of giving an existing one a second meaning.
 - **Status.** The status in the ADR header is authoritative. Update the status table in the PRD and any mention in the README in the same pull request.
+- **Section references.** Sections are referred to by number, so adding or moving a section can break references elsewhere. Write a new reference as `§{Section title}` and let the normalizer number it.
+- **Checks.** Run the scripts in [tools/docs](tools/docs/README.md) before opening a pull request: `normalize_adrs.py` puts an ADR into the standard shape, and `check_docs.py` reports missing fields, broken references, and terms used inconsistently. CI runs both.
 
 ## Proposed contribution workflow
 

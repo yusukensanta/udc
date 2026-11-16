@@ -6,7 +6,7 @@ UDC is an open-source command-line tool and library that runs data-format conver
 
 Its goal is to make a conversion trustworthy: the schema mapping is classified before data moves, the output is validated against the source under published rules, an interrupted job resumes from completed work, and only validated output is published.
 
-> **Status:** Product definition and architecture design. This repository currently contains documentation only. There is no source code, build configuration, or released implementation yet, and no format or cloud integration should be considered supported until it is implemented here and covered by tests.
+> **Status:** Product definition and architecture design. This repository currently contains documentation and the scripts that check it. There is no product source code, build configuration, or released implementation yet, and no format or cloud integration should be considered supported until it is implemented here and covered by tests.
 
 ## What is in this repository
 
@@ -16,6 +16,8 @@ CONTRIBUTING.md    Contribution guidelines, ADR conventions, and AI-assistance p
 docs/
   PRD.md           Product Requirements Document (draft)
   adr/             Architecture Decision Records, ADR-0001 to ADR-0019
+tools/
+  docs/            Consistency checks for the documentation, run in CI
 ```
 
 The planned crate and directory organization is illustrated in [PRD §11.2](docs/PRD.md#112-illustrative-repository-organization). Those directories do not exist yet; each will be added when the functionality it holds is implemented.
