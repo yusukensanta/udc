@@ -40,14 +40,23 @@ Rust aligns with the core workload's need for safe binary parsing, explicit memo
 
 The selection is conditional on validating the required format and cloud library coverage. It is not based on a blanket claim that Rust is faster or easier than the alternatives.
 
-## 6. Trade-offs and consequences
+## 6. Toolchain, edition, and minimum Rust version
+
+Added on 2026-11-17, when the workspace was created. The language decision above is unchanged.
+
+- **Edition:** 2024, the edition `cargo new` selects with the pinned toolchain.
+- **Pinned toolchain:** `rust-toolchain.toml` names one exact stable release, 1.100.0 at the time of writing, with rustfmt, clippy, and llvm-tools. Every developer and every CI run builds with it. It is raised by a pull request that changes only the toolchain and passes CI.
+- **Minimum supported Rust version (MSRV):** until the first package release, `rust-version` in the workspace equals the pinned toolchain and moves with it. Nobody outside the project builds UDC before then, so an older floor would only add work. A floor for published crates, and how far it may trail the latest stable release, is decided before the first package release (ADR-0019).
+- **Lints:** `unsafe_code` is forbidden and Clippy's default set is enforced, through workspace lints, with warnings treated as errors in CI. An exception is made where it is needed, with the reason next to it.
+
+## 7. Trade-offs and consequences
 
 - Contributors need Rust proficiency and familiarity with ownership, lifetimes, traits, and async programming.
 - Some protocols or cloud features may have more mature JVM implementations; UDC may need an external integration or defer that capability.
 - Dependency compile times and native build complexity must be managed.
 - Public APIs should avoid exposing unnecessary implementation-specific types where practical.
 
-## 7. Validation plan
+## 8. Validation plan
 
 Before declaring the first release production-ready:
 - Verify the selected Rust libraries cover required Parquet, CSV, JSON, and cloud storage paths.
@@ -55,21 +64,23 @@ Before declaring the first release production-ready:
 - Test cancellation, backpressure, and error propagation under concurrent I/O.
 - Review dependency licenses and maintenance activity.
 
-## 8. Ownership boundary
+## 9. Ownership boundary
 
-**Owns:** the implementation language of the core, CLI, and initial adapters.
+**Owns:** the implementation language of the core, CLI, and initial adapters, and the Rust edition, the pinned toolchain, the minimum supported Rust version, and the language-level lints.
 
 **Does not own:**
 - The async runtime and concurrency primitives — ADR-0007.
 - Workspace layout, dependency policy, and feature flags — ADR-0011.
+- Which targets the official binary supports, and the release gates — ADR-0019.
 - Execution backend selection — ADR-0004.
 
-## 9. Revisit conditions
+## 10. Revisit conditions
 
 Revisit if required integrations are unavailable or materially incomplete in Rust, if measured performance or operational behavior fails the MVP targets, or if contributor/maintenance costs become prohibitive.
 
-## 10. Related ADRs
+## 11. Related ADRs
 
 - [ADR-0004: Execution Engine Selection](ADR-0004-execution-engine-selection.md)
 - [ADR-0007: Async Runtime and Concurrency Control](ADR-0007-async-runtime-and-concurrency.md)
 - [ADR-0011: Dependency and Feature Management](ADR-0011-dependency-and-feature-management.md)
+- [ADR-0019: Packaging, Release, and Distribution](ADR-0019-packaging-and-distribution.md)
