@@ -93,7 +93,7 @@ Only Rust is decided. Everything else is a candidate that must be validated befo
 
 There is nothing to install yet. The planned distribution is prebuilt binaries plus crates.io packages, starting at the first MVP release; see [ADR-0019](docs/adr/ADR-0019-packaging-and-distribution.md).
 
-The repository is planned to become public during Phase 0, once the reference configuration of the first evidence gate runs, as public development: interfaces may change without notice, nothing is packaged, and there is no support commitment.
+The repository has been public since 2026-11-18, as public development: interfaces may change without notice, nothing is packaged, and there is no support commitment. To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 The packages named `udc` on crates.io, PyPI, and npm are unrelated projects. UDC's CLI is proposed to be published as `udc-cli`.
 
