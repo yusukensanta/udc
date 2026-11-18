@@ -12,7 +12,7 @@ UDC is intended to ship as a local CLI and a reusable Rust library (PRD §11.1).
 - ADR-0011 keeps default Cargo features minimal. A prebuilt binary has to fix one feature set, so a binary and a `cargo install` build can differ unless that is decided deliberately.
 - Format, storage, TLS, and state-store libraries can bring C or C++ code that is compiled at build time. Each one adds requirements to every build target.
 - Crate names on crates.io are global and first-come, first-served.
-- The repository is private. The maintainers have decided that the source becomes public once the reference configuration of the first evidence gate runs, during Phase 0, and that packages are first published at the MVP release (§12).
+- The maintainers have decided that the source becomes public once the reference configuration of the first evidence gate runs, during Phase 0, and that packages are first published at the MVP release (§12). The repository was made public on 2026-11-18, after the preconditions of §12.1 were met.
 
 Facts established on 2026-11-15:
 
