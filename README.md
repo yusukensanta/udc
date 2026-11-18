@@ -13,6 +13,7 @@ Its goal is to make a conversion trustworthy: the schema mapping is classified b
 ```text
 README.md          Project overview (this file)
 CONTRIBUTING.md    Contribution guidelines, ADR conventions, and AI-assistance policy
+SECURITY.md        How to report a vulnerability privately
 Cargo.toml         Rust workspace; rust-toolchain.toml pins the toolchain (ADR-0002)
 deny.toml          Dependency license, advisory, and source rules (ADR-0011)
 crates/
